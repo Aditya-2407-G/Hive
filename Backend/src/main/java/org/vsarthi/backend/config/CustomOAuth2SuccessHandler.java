@@ -2,32 +2,38 @@ package org.vsarthi.backend.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.service.CustomOAuth2User;
 import org.vsarthi.backend.service.JwtService;
+import org.vsarthi.backend.service.UserService;
+
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 @Component
+
 public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtService jwtService;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
-    public CustomOAuth2SuccessHandler(JwtService jwtService, ObjectMapper objectMapper) {
+    public CustomOAuth2SuccessHandler(JwtService jwtService, @Lazy UserService userService, ObjectMapper objectMapper) {
         this.jwtService = jwtService;
+        this.userService = userService;
         this.objectMapper = objectMapper;
     }
 
@@ -36,31 +42,41 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
         Users user = oAuth2User.getUser();
 
-        String token = jwtService.generateToken(user);
+        UserService.TokenPair tokens = userService.generateTokens(user);
 
-        // Create a cookie with the JWT
-        Cookie jwtCookie = new Cookie("jwt", token);
-        jwtCookie.setHttpOnly(true);
-        jwtCookie.setSecure(true); // Set to true if using HTTPS
-        jwtCookie.setPath("/");
-        jwtCookie.setMaxAge(3600); // 1 hour, adjust as needed
+        // Create a cookie with the access token
+        ResponseCookie jwtCookie = ResponseCookie.from("accessToken", tokens.accessToken)
+                .httpOnly(true)
+                .secure(true) // Set to true if using HTTPS
+                .path("/")
+                .maxAge(3600) // 1 hour
+                .build();
 
-        response.addCookie(jwtCookie);
+        // Create a cookie with the refresh token
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken)
+                .httpOnly(true)
+                .secure(true) // Set to true if using HTTPS
+                .path("/api/auth/refresh") // Restrict to refresh endpoint
+                .maxAge(604800) // 1 week
+                .build();
+
+        response.addHeader("Set-Cookie", jwtCookie.toString());
+        response.addHeader("Set-Cookie", refreshCookie.toString());
 
         // Create the redirect URL with the auth data
-        String redirectUrl = buildRedirectUrl(user, token);
+        String redirectUrl = buildRedirectUrl(user, tokens.accessToken);
 
         // Perform the redirect
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
-    private String buildRedirectUrl(Users user, String token) throws IOException {
+    private String buildRedirectUrl(Users user, String accessToken) throws IOException {
         // Create an object with the auth data
         AuthResponseDTO authData = new AuthResponseDTO(
                 true,
                 "Authentication successful",
                 user,
-                token
+                accessToken
         );
 
         // Convert the auth data to JSON and encode it for URL
@@ -74,7 +90,6 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
     // DTO class for auth response
     @Getter
     private static class AuthResponseDTO {
-        // Getters
         private final boolean success;
         private final String message;
         private final Users user;
@@ -86,6 +101,5 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             this.user = user;
             this.token = token;
         }
-
     }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthProvider";
+import { useAuth, useAuthInterceptor } from "../context/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import axios from "axios";
 
 export default function Home() {
     const { auth, logout } = useAuth();
+    useAuthInterceptor(); // Add this line to use the interceptor
     const [rooms, setRooms] = useState([]);
     const [roomName, setRoomName] = useState("");
     const [shareableLink, setShareableLink] = useState("");
@@ -30,30 +31,36 @@ export default function Home() {
     const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
     useEffect(() => {
-        if (!auth.token) {
+        if (!auth.isAuthenticated) {
             navigate("/login");
             return;
         }
         fetchUserRooms();
-    }, [auth.token, navigate]);
+    }, [auth.isAuthenticated, navigate]);
 
     const handleLogout = async () => {
+
         setIsLoggingOut(true);
         try {
             await logout();
+            toast({
+                title: "Logged out successfully",
+            });
             navigate("/login");
         } catch (error) {
-            console.error("Logout error:", error);
+            console.error("Error logging out:", error);
             toast({
                 variant: "destructive",
-                title: "Logout failed",
-                description: "Please try again",
-
+                title: "Error logging out",
+                description: "Please try again later",
             });
         } finally {
             setIsLoggingOut(false);
         }
-    };
+        
+
+    }
+
 
     const fetchUserRooms = async () => {
         try {
@@ -61,7 +68,7 @@ export default function Home() {
             const response = await axios.get(
                 "http://localhost:8080/api/rooms",
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                     withCredentials: true,
                 }
             );
@@ -86,7 +93,7 @@ export default function Home() {
                 "http://localhost:8080/api/rooms",
                 { roomName },
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                     withCredentials: true,
                 }
             );
@@ -116,7 +123,7 @@ export default function Home() {
                 `http://localhost:8080/api/rooms/join/${shareableLink}`,
                 {},
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                     withCredentials: true,
                 }
             );
@@ -181,7 +188,7 @@ export default function Home() {
             >
                 <header className="flex justify-between items-center mb-12">
                     <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-amber-400">
-                        Welcome to Hive, {auth.user?.username}!
+                        Welcome to Hive, {auth.user}!
                     </h1>
                     <Button
                         variant="ghost"

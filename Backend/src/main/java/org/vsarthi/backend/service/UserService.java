@@ -3,6 +3,7 @@ package org.vsarthi.backend.service;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -13,6 +14,7 @@ import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.repository.UserRepository;
 
 @Service
+
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -28,17 +30,16 @@ public class UserService {
     }
 
     public static void removeCookies(HttpServletResponse response) {
-
-        clearCookie("jwt", response);
+        clearCookie("accessToken", response);
         clearCookie("JSESSIONID", response);
     }
 
     private static void clearCookie(String cookieName, HttpServletResponse response) {
         Cookie cookie = new Cookie(cookieName, null);
-        cookie.setPath("/");  // Make sure it matches the cookie's original path
-        cookie.setHttpOnly(true);  // Optional: Keep the cookie HttpOnly if it was initially set as HttpOnly
-        cookie.setMaxAge(0);  // Expire the cookie
-        response.addCookie(cookie);  // Add it to the response to clear it on the client-side
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
     }
 
     public String verify(Users user) {
@@ -50,7 +51,7 @@ public class UserService {
         Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword()));
 
         if (authentication.isAuthenticated()) {
-            return jwtService.generateToken(existingUser);
+            return jwtService.generateAccessToken(existingUser);
         } else {
             throw new IllegalArgumentException("User not authenticated");
         }
@@ -68,4 +69,54 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    // New method to generate both access and refresh tokens
+    public TokenPair generateTokens(Users user) {
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        // Store refresh token in the database
+        user.setRefreshToken(refreshToken);
+        userRepository.save(user);
+
+        return new TokenPair(accessToken, refreshToken);
+    }
+
+    // New method to authenticate and generate tokens
+    public TokenPair authenticateAndGenerateTokens(String email, String password) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password)
+        );
+
+        if (authentication.isAuthenticated()) {
+            Users user = userRepository.findByEmail(email);
+            if (user == null) {
+                throw new UsernameNotFoundException("User not found");
+            }
+            return generateTokens(user);
+        } else {
+            throw new IllegalArgumentException("Invalid email or password");
+        }
+    }
+
+    public TokenPair refreshTokens(String refreshToken) {
+        String email = jwtService.extractEmail(refreshToken);
+        Users user = userRepository.findByEmail(email);
+
+        if (user == null || !refreshToken.equals(user.getRefreshToken())) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        }
+
+        return generateTokens(user);
+    }
+
+    // Inner class to represent a pair of tokens
+    public static class TokenPair {
+        public final String accessToken;
+        public final String refreshToken;
+
+        public TokenPair(String accessToken, String refreshToken) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+        }
+    }
 }

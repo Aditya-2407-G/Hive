@@ -1,74 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useAuth } from '../context/AuthProvider';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { authService } from '@/service/AuthService';
+import axios from 'axios';
+
+const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 export default function Register() {
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
   const [isRegistering, setIsRegistering] = useState(false);
   const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, auth } = useAuth();
+  const { auth } = useAuth();
   const { toast } = useToast();
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.id]: e.target.value,
-    });
-  };
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(registerSchema),
+  });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-        toast({
-            title: "Password Mismatch",
-            description: "Passwords do not match",
-            variant: "destructive",
-        });
-        return;
-    }
-
+  const onSubmit = async (data) => {
     setIsRegistering(true);
     try {
-        const userData = {
-            username: formData.username,
-            email: formData.email,
-            password: formData.password
-        };
-
-        await authService.register(userData);
-        
-        toast({
-            title: "Registration Successful",
-            description: "Please log in with your new account",
-            variant: "default",
-        });
-        navigate('/login');
-        
+      const response = await axios.post('http://localhost:8080/api/auth/register', data);
+      
+      toast({
+        title: "Registration Successful",
+        description: "Please log in with your new account",
+        variant: "default",
+      });
+      navigate('/login');
+      
     } catch (err) {
-        toast({
-            title: "Registration Failed",
-            description: err.message || "An error occurred during registration",
-            variant: "destructive",
-        });
-        console.error('Registration error:', err);
+      toast({
+        title: "Registration Failed",
+        description: err.message || "An error occurred during registration",
+        variant: "destructive",
+      });
+      console.error('Registration error:', err);
     } finally {
-        setIsRegistering(false);
+      setIsRegistering(false);
     }
-};
+  };
 
   useEffect(() => {
     if (auth.isAuthenticated) {
@@ -90,18 +80,17 @@ export default function Register() {
           <CardDescription className="text-slate-400">Enter your details to register</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-slate-200">Username</Label>
               <Input
                 id="username"
                 type="text"
                 placeholder="Enter your username"
-                value={formData.username}
-                onChange={handleChange}
-                required
+                {...register("username")}
                 className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
               />
+              {errors.username && <p className="text-red-500 text-sm">{errors.username.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-200">Email</Label>
@@ -109,35 +98,50 @@ export default function Register() {
                 id="email"
                 type="email"
                 placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleChange}
-                required
+                {...register("email")}
                 className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
               />
+              {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-200">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Create a password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a password"
+                  {...register("password")}
+                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-500 text-sm">{errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-slate-200">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  {...register("confirmPassword")}
+                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword.message}</p>}
             </div>
             
             <Button 

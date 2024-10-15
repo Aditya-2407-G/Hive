@@ -51,7 +51,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
             if (cookies != null) {
                 Cookie jwtCookie = Arrays.stream(cookies)
-                        .filter(cookie -> "jwt".equals(cookie.getName()))
+                        .filter(cookie -> "accessToken".equals(cookie.getName()))
                         .findFirst()
                         .orElse(null);
 
@@ -77,4 +77,15 @@ public class JwtFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getRequestURI().contains("/api/auth/register") ||
+                request.getRequestURI().contains("/api/auth/login") ||
+                request.getRequestURI().contains("/api/auth/refresh") ||
+                request.getRequestURI().contains("/oauth2") ||
+                request.getRequestURI().contains("/api/auth/logout") ||
+                request.getRequestURI().contains("/ws");
+    }
+
 }

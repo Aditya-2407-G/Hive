@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -34,6 +35,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+
 public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
@@ -53,7 +55,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request -> request
-                        .requestMatchers("/api/auth/register", "/api/auth/login", "/oauth2/**", "/ws/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login","/api/auth/refresh","/api/auth/logout", "/oauth2/**", "/login", "/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

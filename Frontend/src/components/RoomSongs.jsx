@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthProvider";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { useAuth, useAuthInterceptor } from "../context/AuthProvider";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export default function RoomSongs() {
     const { roomId } = useParams();
     const location = useLocation();
     const { auth } = useAuth();
+    useAuthInterceptor(); // This sets up the interceptor
     const { toast } = useToast();
     const [songs, setSongs] = useState([]);
     const [youtubeLink, setYoutubeLink] = useState("");
@@ -36,10 +37,19 @@ export default function RoomSongs() {
     const [isAddingSong, setIsAddingSong] = useState(false);
     const [isVoting, setIsVoting] = useState(false);
     const [isClosingRoom, setIsClosingRoom] = useState(false);
+    const navigate = useNavigate();
     const [isLoadingSongs, setIsLoadingSongs] = useState(true);
     const [isTogglingPlayback, setIsTogglingPlayback] = useState(false);
     const [loadingSongId, setLoadingSongId] = useState(null);
     const playerRef = useRef(null);
+
+
+    useEffect(() => {
+        if (!auth.isAuthenticated) {
+            navigate("/login");
+            return;
+        }
+    }, [auth.isAuthenticated, navigate]);
 
     const fetchSongs = useCallback(async () => {
         setIsLoadingSongs(true);
@@ -47,7 +57,7 @@ export default function RoomSongs() {
             const response = await axios.get(
                 `${API_BASE_URL}/rooms/${roomId}/songs`,
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                 }
             );
             const sortedSongs = response.data.sort((a, b) => b.votes - a.votes);
@@ -61,15 +71,23 @@ export default function RoomSongs() {
             }
         } catch (error) {
             console.error("Error fetching songs:", error);
-            toast({
-                title: "Error",
-                description: "Failed to fetch songs. Please try again.",
-                variant: "destructive",
-            });
+            if (error.response?.status === 404) {
+                toast({
+                    title: "Error",
+                    description: "Room not found. It may have been closed or deleted.",
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: "Error",
+                    description: "Failed to fetch songs. Please try again.",
+                    variant: "destructive",
+                });
+            }
         } finally {
             setIsLoadingSongs(false);
         }
-    }, [roomId, auth.token, currentSong, toast]);
+    }, [roomId, auth.accessToken, currentSong, toast]);
 
     useEffect(() => {
         fetchSongs();
@@ -92,7 +110,7 @@ export default function RoomSongs() {
                 `${API_BASE_URL}/rooms/${roomId}/songs`,
                 { youtubeLink },
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                 }
             );
             setYoutubeLink("");
@@ -123,7 +141,7 @@ export default function RoomSongs() {
                 `${API_BASE_URL}/rooms/songs/${songId}/vote`,
                 {},
                 {
-                    headers: { Authorization: `Bearer ${auth.token}` },
+                    headers: { Authorization: `Bearer ${auth.accessToken}` },
                     params: { isUpvote: true },
                 }
             );
@@ -209,7 +227,7 @@ export default function RoomSongs() {
         setIsClosingRoom(true);
         try {
             await axios.delete(`${API_BASE_URL}/rooms/${roomId}/close`, {
-                headers: { Authorization: `Bearer ${auth.token}` },
+                headers: { Authorization: `Bearer ${auth.accessToken}` },
             });
             toast({
                 title: "Room Closed",

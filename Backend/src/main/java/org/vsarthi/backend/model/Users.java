@@ -24,6 +24,9 @@ public class Users {
     private String oauth2Provider;
     private String oauth2Id;
 
+    @Column(unique = true)
+    private String refreshToken;
+
     @JsonIgnore
     @OneToMany(mappedBy = "creator", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<Room> createdRooms;

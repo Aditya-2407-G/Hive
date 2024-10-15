@@ -1,95 +1,127 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useAuth } from "../context/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {Card,CardHeader,CardTitle,CardDescription,CardContent,CardFooter,} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { authService } from "../service/AuthService";
+
+const API_BASE_URL = 'http://localhost:8080';
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
 
 export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const navigate = useNavigate();
-    const location = useLocation();
-    const { login, auth } = useAuth();
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
-    const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
-    const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, auth } = useAuth();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const { toast } = useToast();
 
-    useEffect(() => {
-        const handleOAuthResponse = () => {
-            const searchParams = new URLSearchParams(window.location.search);
-            const data = searchParams.get("data");
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(loginSchema),
+  });
 
-            if (data) {
-                try {
-                    const parsedData = JSON.parse(decodeURIComponent(data));
-                    if (parsedData.success) {
-                        login({
-                            success: true,
-                            user: parsedData.user,
-                            token: parsedData.token,
-                            message: parsedData.message,
-                        });
-                    } else {
-                        toast({
-                            title: "Login Failed",
-                            description:
-                                parsedData.message || "OAuth login failed",
-                            variant: "destructive",
-                        });
-                    }
-                } catch (err) {
-                    console.error("OAuth response parsing error:", err);
-                    toast({
-                        title: "Error",
-                        description: "Error processing OAuth login response",
-                        variant: "destructive",
-                    });
-                }
-            }
-        };
+  useEffect(() => {
+    if (auth.isAuthenticated) {
+      navigate('/home');
+    }
+  }, [auth.isAuthenticated, navigate]);
 
-        handleOAuthResponse();
-    }, [login, toast]);
+  useEffect(() => {
+    const handleOAuthResponse = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const data = searchParams.get("data");
 
-    useEffect(() => {
-        if (auth.isAuthenticated) {
-            const from = location.state?.from?.pathname || "/home";
-            navigate(from, { replace: true });
-        }
-    }, [auth.isAuthenticated, navigate, location]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoggingIn(true);
+      if (data) {
         try {
-            const data = await authService.login(email, password);
+          const parsedData = JSON.parse(decodeURIComponent(data));
+          if (parsedData.success) {
             login({
-                success: true,
-                user: data.user,
-                token: data.token,
-                message: "Login successful",
+              user: parsedData.username,
+              message: parsedData.message,
+              accessToken: parsedData.tokens.accessToken,
+              refreshToken: parsedData.tokens.refreshToken,
             });
-        } catch (err) {
+          } else {
             toast({
-                title: "Login Failed",
-                description: err.message || "An error occurred during login",
-                variant: "destructive",
+              title: "Login Failed",
+              description: parsedData.message || "OAuth login failed",
+              variant: "destructive",
             });
-            console.error("Login error:", err);
-        } finally {
-            setIsLoggingIn(false);
+          }
+        } catch (err) {
+          console.error("OAuth response parsing error:", err);
+          toast({
+            title: "Error",
+            description: "Error processing OAuth login response",
+            variant: "destructive",
+          });
         }
+      }
     };
 
-    const handleGoogleLogin = () => {
-        setIsGoogleLoggingIn(true);
-        authService.googleLogin();
-    };
+    handleOAuthResponse();
+  }, [login, toast]);
+
+  const onSubmit = async (data) => {
+    setIsLoggingIn(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
+      }
+
+      const responseData = await response.json();
+
+      login({
+        user: responseData.user.username,
+        message: responseData.message,
+        accessToken: responseData.tokens.accessToken,
+        refreshToken: responseData.tokens.refreshToken
+      });
+
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!"
+      });
+
+      // navigate('/home');
+    } catch (err) {
+      console.error("Login error:", err);
+      toast({
+        title: "Login Failed",
+        description: err.message || "An error occurred during login. Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    setIsGoogleLoggingIn(true);
+    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+  };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -103,7 +135,10 @@ export default function Login() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form
+                        onSubmit={handleSubmit(onSubmit)}
+                        className="space-y-4"
+                    >
                         <div className="space-y-2">
                             <Label htmlFor="email" className="text-slate-200">
                                 Email
@@ -112,11 +147,14 @@ export default function Login() {
                                 id="email"
                                 type="text"
                                 placeholder="Enter your email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
+                                {...register("email")}
                                 className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
                             />
+                            {errors.email && (
+                                <p className="text-red-500 text-sm">
+                                    {errors.email.message}
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label
@@ -125,15 +163,33 @@ export default function Login() {
                             >
                                 Password
                             </Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="Enter your password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500"
-                            />
+                            <div className="relative">
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Enter your password"
+                                    {...register("password")}
+                                    className="bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500 pr-10"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setShowPassword(!showPassword)
+                                    }
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-300"
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-5 w-5" />
+                                    ) : (
+                                        <Eye className="h-5 w-5" />
+                                    )}
+                                </button>
+                            </div>
+                            {errors.password && (
+                                <p className="text-red-500 text-sm">
+                                    {errors.password.message}
+                                </p>
+                            )}
                         </div>
 
                         <Button
@@ -162,7 +218,7 @@ export default function Login() {
                     <Button
                         variant="outline"
                         disabled={isGoogleLoggingIn}
-                        className="w-full border-slate-700 text-slate-800 hover:bg-slate-800 hover:text-slate-100"
+                        className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                         onClick={handleGoogleLogin}
                     >
                         {isGoogleLoggingIn ? (
