@@ -74,4 +74,14 @@ public class JwtService {
     private SecretKey getKey() {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
+
+    public boolean isTokenAboutToExpire(String accessToken) {
+        Date expiration = extractExpiration(accessToken);
+        Date now = new Date();
+        return expiration.getTime() - now.getTime() < 30000; // 1 minutes in milliseconds
+    }
+
+    public boolean isTokenValid(String accessToken) {
+        return !isTokenExpired(accessToken);
+    }
 }

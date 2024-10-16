@@ -50,7 +50,7 @@ public class AuthController {
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken)
                 .httpOnly(true)
                 .secure(true) // Enable in production
-                .path("/api/auth/refresh") // Restrict to refresh endpoint
+                .path("/") // not the best practice, but for simplicity
                 .maxAge(604800) // 1 week
                 .build();
 
@@ -86,7 +86,7 @@ public class AuthController {
         ResponseCookie clearRefreshCookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
                 .secure(true)
-                .path("/api/auth/refresh")
+                .path("/")
                 .maxAge(0)
                 .build();
 
@@ -115,7 +115,7 @@ public class AuthController {
             ResponseCookie newRefreshCookie = ResponseCookie.from("refreshToken", newTokens.refreshToken)
                     .httpOnly(true)
                     .secure(true)
-                    .path("/api/auth/refresh")
+                    .path("/")
                     .maxAge(604800)
                     .build();
 

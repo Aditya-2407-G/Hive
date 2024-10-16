@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useAuth, useAuthInterceptor } from "../context/AuthProvider";
+import { useAuth } from "../context/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,11 +14,11 @@ import {
     Loader,
     Loader2,
 } from "lucide-react";
-import axios from "axios";
+import { useApi } from "@/hooks/api";
 
 export default function Home() {
+    const apiInterceptor = useApi();
     const { auth, logout } = useAuth();
-    useAuthInterceptor(); // Add this line to use the interceptor
     const [rooms, setRooms] = useState([]);
     const [roomName, setRoomName] = useState("");
     const [shareableLink, setShareableLink] = useState("");
@@ -39,7 +39,6 @@ export default function Home() {
     }, [auth.isAuthenticated, navigate]);
 
     const handleLogout = async () => {
-
         setIsLoggingOut(true);
         try {
             await logout();
@@ -57,21 +56,12 @@ export default function Home() {
         } finally {
             setIsLoggingOut(false);
         }
-        
-
     }
-
 
     const fetchUserRooms = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(
-                "http://localhost:8080/api/rooms",
-                {
-                    headers: { Authorization: `Bearer ${auth.accessToken}` },
-                    withCredentials: true,
-                }
-            );
+            const response = await apiInterceptor.get('/rooms');
             setRooms(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error("Error fetching rooms:", error);
@@ -89,14 +79,7 @@ export default function Home() {
     const createRoom = async () => {
         setIsCreatingRoom(true);
         try {
-            await axios.post(
-                "http://localhost:8080/api/rooms",
-                { roomName },
-                {
-                    headers: { Authorization: `Bearer ${auth.accessToken}` },
-                    withCredentials: true,
-                }
-            );
+            await apiInterceptor.post('/rooms', { roomName });
             setRoomName("");
             fetchUserRooms();
             setIsCreating(false);
@@ -119,14 +102,7 @@ export default function Home() {
     const joinRoom = async () => {
         setIsJoiningRoom(true);
         try {
-            await axios.post(
-                `http://localhost:8080/api/rooms/join/${shareableLink}`,
-                {},
-                {
-                    headers: { Authorization: `Bearer ${auth.accessToken}` },
-                    withCredentials: true,
-                }
-            );
+            await apiInterceptor.post(`/rooms/join/${shareableLink}`);
             setShareableLink("");
             fetchUserRooms();
             toast({

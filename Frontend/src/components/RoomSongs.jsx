@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { useAuth, useAuthInterceptor } from "../context/AuthProvider";
+import { useAuth } from "../context/AuthProvider";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,14 +17,15 @@ import {
 import YouTube from "react-youtube";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/api";
 
 const API_BASE_URL = "http://localhost:8080/api";
 
 export default function RoomSongs() {
+    const apiInterceptor = useApi();
     const { roomId } = useParams();
     const location = useLocation();
     const { auth } = useAuth();
-    useAuthInterceptor(); // This sets up the interceptor
     const { toast } = useToast();
     const [songs, setSongs] = useState([]);
     const [youtubeLink, setYoutubeLink] = useState("");
@@ -54,8 +55,8 @@ export default function RoomSongs() {
     const fetchSongs = useCallback(async () => {
         setIsLoadingSongs(true);
         try {
-            const response = await axios.get(
-                `${API_BASE_URL}/rooms/${roomId}/songs`,
+            const response = await apiInterceptor.get(
+                `/rooms/${roomId}/songs`,
                 {
                     headers: { Authorization: `Bearer ${auth.accessToken}` },
                 }
@@ -106,8 +107,8 @@ export default function RoomSongs() {
         }
         setIsAddingSong(true);
         try {
-            await axios.post(
-                `${API_BASE_URL}/rooms/${roomId}/songs`,
+            await apiInterceptor.post(
+                `/rooms/${roomId}/songs`,
                 { youtubeLink },
                 {
                     headers: { Authorization: `Bearer ${auth.accessToken}` },
@@ -137,8 +138,8 @@ export default function RoomSongs() {
         setLoadingSongId(songId);
         setIsVoting(true);
         try {
-            await axios.post(
-                `${API_BASE_URL}/rooms/songs/${songId}/vote`,
+            await apiInterceptor.post(
+                `/rooms/songs/${songId}/vote`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${auth.accessToken}` },
@@ -226,7 +227,7 @@ export default function RoomSongs() {
     const closeRoom = async () => {
         setIsClosingRoom(true);
         try {
-            await axios.delete(`${API_BASE_URL}/rooms/${roomId}/close`, {
+            await apiInterceptor.delete(`/rooms/${roomId}/close`, {
                 headers: { Authorization: `Bearer ${auth.accessToken}` },
             });
             toast({

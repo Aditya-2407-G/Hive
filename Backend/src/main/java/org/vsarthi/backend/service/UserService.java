@@ -2,6 +2,7 @@ package org.vsarthi.backend.service;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import org.antlr.v4.runtime.Token;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -97,6 +98,22 @@ public class UserService {
             throw new IllegalArgumentException("Invalid email or password");
         }
     }
+
+
+    // generate a refreshed access token
+
+    public String refreshedAccessToken(String refreshToken) {
+        String email = jwtService.extractEmail(refreshToken);
+        Users user = userRepository.findByEmail(email);
+
+        if (user == null || !refreshToken.equals(user.getRefreshToken())) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        }
+
+        return jwtService.generateAccessToken(user);
+    }
+
+
 
     public TokenPair refreshTokens(String refreshToken) {
         String email = jwtService.extractEmail(refreshToken);

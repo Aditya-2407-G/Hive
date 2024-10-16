@@ -40,10 +40,12 @@ public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final JwtFilter jwtFilter;
+    private final TokenRefreshFilter tokenRefreshFilter;
     private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
 
     @Autowired
-    public SecurityConfig(UserDetailsService userDetailsService, JwtFilter jwtFilter, CustomOAuth2SuccessHandler customOAuth2SuccessHandler) {
+    public SecurityConfig(UserDetailsService userDetailsService, JwtFilter jwtFilter, CustomOAuth2SuccessHandler customOAuth2SuccessHandler, TokenRefreshFilter tokenRefreshFilter) {
+        this.tokenRefreshFilter = tokenRefreshFilter;
         this.userDetailsService = userDetailsService;
         this.jwtFilter = jwtFilter;
         this.customOAuth2SuccessHandler = customOAuth2SuccessHandler;
@@ -67,6 +69,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(customOAuth2SuccessHandler)
                 )
+                .addFilterBefore(tokenRefreshFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

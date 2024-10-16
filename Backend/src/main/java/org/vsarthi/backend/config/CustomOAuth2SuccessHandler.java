@@ -19,20 +19,19 @@ import org.vsarthi.backend.service.UserService;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Component
 
 public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtService jwtService;
     private final UserService userService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
-    public CustomOAuth2SuccessHandler(JwtService jwtService, @Lazy UserService userService, ObjectMapper objectMapper) {
-        this.jwtService = jwtService;
+    public CustomOAuth2SuccessHandler(@Lazy UserService userService, ObjectMapper objectMapper) {
         this.userService = userService;
         this.objectMapper = objectMapper;
     }
@@ -56,7 +55,7 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken)
                 .httpOnly(true)
                 .secure(true) // Set to true if using HTTPS
-                .path("/api/auth/refresh") // Restrict to refresh endpoint
+                .path("/") // not the best practice, but for simplicity
                 .maxAge(604800) // 1 week
                 .build();
 
@@ -64,19 +63,18 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         response.addHeader("Set-Cookie", refreshCookie.toString());
 
         // Create the redirect URL with the auth data
-        String redirectUrl = buildRedirectUrl(user, tokens.accessToken);
+        String redirectUrl = buildRedirectUrl(user, tokens);
 
         // Perform the redirect
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
-    private String buildRedirectUrl(Users user, String accessToken) throws IOException {
-        // Create an object with the auth data
-        AuthResponseDTO authData = new AuthResponseDTO(
-                true,
-                "Authentication successful",
-                user,
-                accessToken
+    private String buildRedirectUrl(Users user, UserService.TokenPair tokens) throws IOException {
+        // Create a map with the auth data
+        Map<String, Object> authData = Map.of(
+                "message", "Authentication successful",
+                "user", user,
+                "tokens", tokens
         );
 
         // Convert the auth data to JSON and encode it for URL

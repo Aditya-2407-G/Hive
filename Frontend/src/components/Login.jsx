@@ -45,9 +45,10 @@ export default function Login() {
       if (data) {
         try {
           const parsedData = JSON.parse(decodeURIComponent(data));
-          if (parsedData.success) {
+          if (parsedData.message === "Authentication successful") {
+            
             login({
-              user: parsedData.username,
+              user: parsedData.user.username,
               message: parsedData.message,
               accessToken: parsedData.tokens.accessToken,
               refreshToken: parsedData.tokens.refreshToken,
@@ -93,6 +94,7 @@ export default function Login() {
 
       const responseData = await response.json();
 
+      
       login({
         user: responseData.user.username,
         message: responseData.message,
