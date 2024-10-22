@@ -11,13 +11,17 @@ import java.util.Collection;
 import java.util.Collections;
 
 @Data
+@NoArgsConstructor(force = true)
 public class UserPrincipal implements UserDetails {
 
     private final Users user;
 
     public UserPrincipal(Users user) {
+
         this.user = user;
     }
+
+
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

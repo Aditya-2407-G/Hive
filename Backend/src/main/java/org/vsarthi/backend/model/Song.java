@@ -1,6 +1,5 @@
 package org.vsarthi.backend.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -26,6 +25,7 @@ public class Song {
     @Column(name = "is_current", nullable = false, columnDefinition = "boolean default false")
     private boolean isCurrent = false;
 
+    @Setter
     @Getter
     @Column(name = "queue_position")
     private Integer queuePosition;
@@ -41,11 +41,6 @@ public class Song {
 
     @OneToMany(mappedBy = "song", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<Vote> votes;
-
-    // Dynamically compute the score (upvotes)
-    public int getScore() {
-        return this.upvotes;
-    }
 
     @Override
     public boolean equals(Object obj) {
@@ -63,10 +58,6 @@ public class Song {
     @Override
     public int hashCode() {
         return id.hashCode();
-    }
-
-    public void setQueuePosition(int position) {
-        this.queuePosition = position;
     }
 
 }

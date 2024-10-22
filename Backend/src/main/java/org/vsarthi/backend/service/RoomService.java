@@ -1,18 +1,27 @@
 package org.vsarthi.backend.service;
 
-import jakarta.transaction.Transactional;
-import org.apache.commons.logging.Log;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Service;
-import org.vsarthi.backend.model.*;
+import org.vsarthi.backend.model.Room;
+import org.vsarthi.backend.model.Song;
+import org.vsarthi.backend.model.SongEndedResponse;
+import org.vsarthi.backend.model.Users;
+import org.vsarthi.backend.model.Vote;
 import org.vsarthi.backend.repository.RoomRepository;
 import org.vsarthi.backend.repository.SongRepository;
 import org.vsarthi.backend.repository.UserRepository;
 import org.vsarthi.backend.repository.VoteRepository;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import jakarta.transaction.Transactional;
 
 
 @Service
@@ -24,7 +33,7 @@ public class RoomService {
     private final UserRepository userRepository;
     private final YouTubeService youTubeService;
     private final Map<Long, Set<String>> activeSessionsInRoom = new ConcurrentHashMap<>();
-    private SimpMessageSendingOperations messagingTemplate;
+    private final SimpMessageSendingOperations messagingTemplate;
 
     @Autowired
     public RoomService(RoomRepository roomRepository, SongRepository songRepository, VoteRepository voteRepository, UserRepository userRepository, YouTubeService youTubeService, SimpMessageSendingOperations messagingTemplate) {
@@ -79,13 +88,63 @@ public class RoomService {
     }
 
     public List<Song> getSongsInRoom(Long roomId) {
-        return songRepository.findByRoomIdOrderByUpvotesDesc(roomId);
+        List<Song> allSongs = songRepository.findByRoomIdOrderByUpvotesDesc(roomId);
+        List<Song> queuedSongs = new ArrayList<>();
+        Song currentSong = null;
+
+        // Separate current song from queue
+        for (Song song : allSongs) {
+            if (song.isCurrent()) {
+                currentSong = song;
+            } else {
+                queuedSongs.add(song);
+            }
+        }
+
+        // Sort queued songs by votes and queue
+        queuedSongs.sort((a, b) -> {
+            // First compare by votes
+            int voteComparison = Integer.compare(b.getUpvotes(), a.getUpvotes());
+
+            // If votes are equal, compare by queue position
+            if (voteComparison == 0) {
+                // Handle null queue positions (shouldn't happen, but just in case)
+                int posA = a.getQueuePosition() != null ? a.getQueuePosition() : Integer.MAX_VALUE;
+                int posB = b.getQueuePosition() != null ? b.getQueuePosition() : Integer.MAX_VALUE;
+                return Integer.compare(posA, posB);
+            }
+
+            return voteComparison;
+        });
+
+        // Update queue positions
+        for (int i = 0; i < queuedSongs.size(); i++) {
+            queuedSongs.get(i).setQueuePosition(i + 1);
+        }
+
+        // Save updated queue positions
+        songRepository.saveAll(queuedSongs);
+
+        // Combine current song with queue
+        List<Song> result = new ArrayList<>();
+        if (currentSong != null) {
+            currentSong.setQueuePosition(null); // Current song has no queue position
+            result.add(currentSong);
+        }
+        result.addAll(queuedSongs);
+
+        return result;
     }
 
     @Transactional
     public Song vote(Long songId, Users user, boolean isUpvote) {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
+
+        // Don't allow voting on the currently playing song
+        if (song.isCurrent()) {
+            throw new RuntimeException("Cannot vote on currently playing song");
+        }
 
         Room room = song.getRoom();
 
@@ -96,7 +155,6 @@ public class RoomService {
             throw new RuntimeException("User has not joined the room");
         }
 
-        // Use voteRepository to check for existing vote
         Optional<Vote> existingVote = voteRepository.findByUserIdAndSongId(user.getId(), songId);
 
         if (existingVote.isPresent()) {
@@ -110,11 +168,11 @@ public class RoomService {
             updateSongVotes(song, isUpvote ? 1 : -1);
         }
 
-        messagingTemplate.convertAndSend("/topic/room/" + song.getRoom().getId() + "/votes", song);
+        // Get updated song list with new vote counts
+        List<Song> updatedSongs = getSongsInRoom(room.getId());
+        messagingTemplate.convertAndSend("/topic/room/" + room.getId() + "/songs", updatedSongs);
 
-        return songRepository.findById(songId)
-                .orElseThrow(() -> new RuntimeException("Song not found after update"));
-
+        return song;
     }
 
     @Transactional
@@ -166,25 +224,37 @@ public class RoomService {
 
     @Transactional
     public Song updateCurrentSong(Long roomId, Long songId, Users user) {
-
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
-        if(!room.getCreator().getId().equals(user.getId())) {
+        if (!room.getCreator().getId().equals(user.getId())) {
             throw new RuntimeException("You are not the creator of the room, Only the creator can update the current song");
         }
 
-        Song song = songRepository.findById(songId)
+        // First, unset current song if exists
+        Optional<Song> currentSong = songRepository.findByRoomIdAndIsCurrent(roomId, true);
+        currentSong.ifPresent(song -> {
+            song.setCurrent(false);
+            song.setQueuePosition(0); // Add to beginning of queue
+            songRepository.save(song);
+        });
+
+        // Set new current song
+        Song newCurrentSong = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
 
-        if(!song.getRoom().getId().equals(roomId)) {
+        if (!newCurrentSong.getRoom().getId().equals(roomId)) {
             throw new RuntimeException("Song does not belong to the room");
         }
 
-        room.setCurrentSong(song);
-        roomRepository.save(room);
-        return song;
+        newCurrentSong.setCurrent(true);
+        newCurrentSong.setQueuePosition(null); // Remove from queue
+        Song saved = songRepository.save(newCurrentSong);
 
+        // Reorder queue
+        List<Song> queuedSongs = getSongsInRoom(roomId);
+
+        return saved;
     }
 
     @Transactional
@@ -282,28 +352,124 @@ public class RoomService {
             throw new RuntimeException("Song does not belong to the room");
         }
 
-        // Remove all votes associated with the song
-        voteRepository.deleteBySong(endedSong);
-        // Reset votes
+        // Reset ended song
+        endedSong.setCurrent(false);
         endedSong.setUpvotes(0);
-
-        // Clear the votes list in the Song entity
         endedSong.setVotes(new ArrayList<>());
+        endedSong.setQueuePosition(Integer.MAX_VALUE); // Place at end of queue
+        voteRepository.deleteBySong(endedSong);
+        songRepository.save(endedSong);
 
-        // Move the ended song to the end of the queue
-        List<Song> songs = getSongsInRoom(roomId);
-        songs.remove(endedSong);
-        songs.add(endedSong);
-
-        // Update the order of songs
-        for (int i = 0; i < songs.size(); i++) {
-            songs.get(i).setQueuePosition(i);
+        // Find next song with highest votes
+        List<Song> remainingSongs = songRepository.findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(roomId);
+        Song nextSong = null;
+        if (!remainingSongs.isEmpty()) {
+            nextSong = remainingSongs.getFirst();
+            nextSong.setCurrent(true);
+            nextSong.setQueuePosition(null);
+            songRepository.save(nextSong);
         }
 
-        songRepository.saveAll(songs);
+        // Update queue positions for remaining songs
+        List<Song> updatedQueue = getSongsInRoom(roomId);
 
-        // Prepare the response
-        List<Long> newSongOrder = songs.stream().map(Song::getId).toList();
-        return new SongEndedResponse(songId, newSongOrder);
+        return new SongEndedResponse(
+                songId,
+                updatedQueue.stream().map(Song::getId).toList()
+        );
+    }
+
+    @Transactional
+    public Song playNow(Long roomId, Long songId, Users user) {
+        // Validate room and user permissions
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        if (!room.getCreator().getId().equals(user.getId())) {
+            throw new RuntimeException("Only the room creator can play songs immediately");
+        }
+
+        // Find and validate the song
+        Song song = songRepository.findById(songId)
+                .orElseThrow(() -> new RuntimeException("Song not found"));
+
+        if (!song.getRoom().getId().equals(roomId)) {
+            throw new RuntimeException("Song does not belong to the room");
+        }
+
+        if (song.isCurrent()) {
+            throw new RuntimeException("Song is already playing");
+        }
+
+        // Unset current song if exists and reset its votes
+        Optional<Song> currentSong = songRepository.findByRoomIdAndIsCurrent(roomId, true);
+        currentSong.ifPresent(s -> {
+            s.setCurrent(false);
+            s.setUpvotes(0);
+            s.setVotes(new ArrayList<>());
+            voteRepository.deleteBySong(s);
+            songRepository.save(s);
+        });
+
+        // Set new current song
+        song.setCurrent(true);
+        song.setQueuePosition(null);
+        song.setUpvotes(0);
+        song.setVotes(new ArrayList<>());
+        voteRepository.deleteBySong(song);
+        Song savedSong = songRepository.save(song);
+
+        // Update queue and notify clients
+        List<Song> updatedSongs = getSongsInRoom(roomId);
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", updatedSongs);
+        return savedSong;
+    }
+
+    @Transactional
+    public void removeSong(Long roomId, Long songId, Users user) {
+        // Validate room and user permissions
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("Room not found with ID: " + roomId));
+
+        if (!room.getCreator().getId().equals(user.getId())) {
+            throw new IllegalStateException("User " + user.getUsername() + " is not authorized to remove songs in this room");
+        }
+
+        // Find and validate the song
+        Song song = songRepository.findById(songId)
+                .orElseThrow(() -> new IllegalArgumentException("Song not found with ID: " + songId));
+
+        // Validate song belongs to room
+        if (!song.getRoom().getId().equals(roomId)) {
+            throw new IllegalStateException("Song with ID " + songId + " does not belong to room " + roomId);
+        }
+
+        // Check if song is currently playing
+        if (song.isCurrent()) {
+            throw new IllegalStateException("Cannot remove currently playing song");
+        }
+
+        try {
+            // First remove all votes associated with the song
+            voteRepository.deleteBySong(song);
+
+            // Remove the song from the room's song set
+            room.getSongs().remove(song);
+
+            // Delete the song
+            songRepository.delete(song);
+
+            // Update queue positions for remaining songs
+            List<Song> remainingSongs = getSongsInRoom(roomId);
+            for (int i = 0; i < remainingSongs.size(); i++) {
+                Song remainingSong = remainingSongs.get(i);
+                if (!remainingSong.isCurrent()) {
+                    remainingSong.setQueuePosition(i);
+                    songRepository.save(remainingSong);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to remove song: " + e.getMessage(), e);
+        }
     }
 }

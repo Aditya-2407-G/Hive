@@ -92,7 +92,7 @@ export default function Home() {
             toast({
                 variant: "destructive",
                 title: "Error creating room",
-                description: "Please try again later",
+                description: error.response.data.error || "Please try again later",
             });
         } finally {
             setIsCreatingRoom(false);

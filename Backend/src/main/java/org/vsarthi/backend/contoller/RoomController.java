@@ -165,4 +165,26 @@ public class RoomController {
         }
     }
 
+    @PostMapping("/{roomId}/songs/{songId}/play-now")
+    public ResponseEntity<Song> playNow(
+            @PathVariable Long roomId,
+            @PathVariable Long songId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Song song = roomService.playNow(roomId, songId, userPrincipal.getUser());
+        return ResponseEntity.ok(song);
+    }
+
+    @DeleteMapping("/{roomId}/songs/{songId}/remove")
+    public ResponseEntity<?> removeSong(
+            @PathVariable Long roomId,
+            @PathVariable Long songId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        roomService.removeSong(roomId, songId, userPrincipal.getUser());
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", roomService.getSongsInRoom(roomId));
+        return ResponseEntity.ok().build();
+    }
+
+
 }

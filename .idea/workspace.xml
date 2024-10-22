@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="37bb48ec-a2b7-4b97-a2b4-afe98cc7f4b0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Frontend/src/components/RoomSongs.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/src/components/RoomSongs.jsx" afterDir="false" />
-    </list>
+    <list default="true" id="37bb48ec-a2b7-4b97-a2b4-afe98cc7f4b0" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -11,6 +9,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="PackageJsonUpdateNotifier">
+    <dismissed value="$PROJECT_DIR$/Frontend/package.json" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 0
@@ -23,7 +24,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
     "kotlin-language-version-configured": "true",
     "nodejs_package_manager_path": "npm",
@@ -48,6 +49,7 @@
       <updated>1728326079420</updated>
       <workItem from="1728326081065" duration="92000" />
       <workItem from="1728823190680" duration="27000" />
+      <workItem from="1729576161407" duration="37000" />
     </task>
     <servers />
   </component>
