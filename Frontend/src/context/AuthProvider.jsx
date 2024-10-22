@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState({
     isAuthenticated: false,
     user: null,
+    email: null,
     message: null,
     accessToken: null,
     refreshToken: null,
@@ -25,15 +26,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       const storedUser = localStorage.getItem('authUser');
+      const storedUserEmail = localStorage.getItem('authUserEmail');
       const storedAccessToken = localStorage.getItem('accessToken');
       const storedRefreshToken = localStorage.getItem('refreshToken');
       
-      if (storedUser && storedAccessToken && storedRefreshToken) {
+      if (storedUser && storedUserEmail && storedAccessToken && storedRefreshToken) {
         try {
           const user = JSON.parse(storedUser);
           setAuth({
             isAuthenticated: true,
             user,
+            email,
             message: null,
             accessToken: storedAccessToken,
             refreshToken: storedRefreshToken,
@@ -41,6 +44,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error('Error parsing stored user data:', error);
           localStorage.removeItem('authUser');
+          localStorage.removeItem('authUserEmail');
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
         }
@@ -51,16 +55,18 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = ({user, message, accessToken, refreshToken}) => {
+  const login = ({user, email, message, accessToken, refreshToken}) => {
     setAuth({
       isAuthenticated: true,
       user: user,
+      email: email,
       message: message,
       accessToken: accessToken,
       refreshToken: refreshToken,
     });
 
     localStorage.setItem('authUser', JSON.stringify(user));
+    localStorage.setItem('authUserEmail', email);
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
   };
@@ -76,11 +82,13 @@ export const AuthProvider = ({ children }) => {
       setAuth({
         isAuthenticated: false,
         user: null,
+        email: null,
         message: null,
         accessToken: null,
         refreshToken: null,
       });
       localStorage.removeItem('authUser');
+      localStorage.removeItem('authUserEmail');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
     }

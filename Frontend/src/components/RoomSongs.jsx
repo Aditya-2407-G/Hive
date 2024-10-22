@@ -64,7 +64,7 @@ const RoomSongs = () => {
         const current = songsList.find(song => song.current);
         const queued = songsList
             .filter(song => !song.current)
-            .sort((a, b) => b.upvotes - a.upvotes);
+            .sort((a, b) => b.upvotes - a.upvotes); 
         
         setCurrentSong(current || null);
         setQueuedSongs(queued);
@@ -115,7 +115,18 @@ const RoomSongs = () => {
 
             stompClient.subscribe(`/topic/room/${roomId}/status`, (message) => {
                 if (message.body === "CLOSED") {
-                    navigate("/rooms");
+                    navigate("/home");
+                }
+                else if(message.body === "CREATOR_LEFT") {
+                    toast({
+                        title: "Room Closed",
+                        description: "The room creator has left. You will be redirected to the home page.",
+                        variant: "destructive",
+                    });
+
+                    setTimeout(() => {
+                        navigate("/home");
+                    }, 2000);
                 }
             });
 
@@ -168,6 +179,36 @@ const RoomSongs = () => {
             stompClient.deactivate();
         };
     }, [roomId, navigate]);
+
+    const handleLeaveRoom = async () => {
+
+        try {
+
+            const leaveMessage = {
+                email : auth.email,
+            }
+
+            if(client && client.connected) {
+                client.publish({
+                    destination: `/app/room/${roomId}/leave`,
+                    body: JSON.stringify(leaveMessage),
+                });
+            }
+
+            if(!isCreator) {
+                navigate("/home");
+            }
+            
+        } catch (error) {
+            console.error("Error leaving room:", error);
+            toast({
+                title: "Error",
+                description: "Failed to leave room. Please try again.",
+                variant: "destructive",
+            });
+            
+        }
+    }
 
     const handleVote = async (songId, isUpvote) => {
         try {
@@ -359,6 +400,11 @@ const RoomSongs = () => {
                             <Users className="w-4 h-4 mr-1" />
                             {activeUsers} active
                         </Badge>
+                        <Button
+                            onClick={handleLeaveRoom}
+                            variant="destructive"    
+                            className="bg-rose-500 hover:bg-rose-600 text-slate-900"
+                        >{isCreator ? "Close Room" : "Leave Room"}</Button>
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
@@ -445,35 +491,6 @@ const RoomSongs = () => {
 
                         </div>
                         <div className="w-full md:w-2/5  order-1 md:order-2">
-                            <Card className="bg-slate-800 border-slate-700 mb-8 shadow-lg">
-                                <CardHeader>
-                                    <CardTitle className="text-2xl text-amber-400">
-                                        Add a Song
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex space-x-2">
-                                    <Input
-                                        type="text"
-                                        value={youtubeLink}
-                                        onChange={(e) => setYoutubeLink(e.target.value)}
-                                        placeholder="Enter YouTube link"
-                                        className="bg-slate-700 border-slate-600 text-slate-100 placeholder-slate-400"
-                                        disabled={isAddingSong}
-                                    />
-                                    <Button
-                                        onClick={addSong}
-                                        disabled={isAddingSong}
-                                        className="bg-amber-400 text-slate-900 hover:bg-amber-500"
-                                    >
-                                        {isAddingSong ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Music className="mr-2 h-4 w-4" />
-                                        )}
-                                        {isAddingSong ? "Adding..." : "Add Song"}
-                                    </Button>
-                                </CardContent>
-                            </Card>
                             <h3 className="text-2xl font-semibold text-amber-400 mb-4">
                                 Now Playing
                             </h3>
@@ -514,11 +531,39 @@ const RoomSongs = () => {
                                     No songs in the queue.
                                 </p>
                             )}
+                            <Card className="bg-slate-800 border-slate-700 mt-8 shadow-lg">
+                                <CardHeader>
+                                    <CardTitle className="text-2xl text-amber-400">
+                                        Add a Song
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex space-x-2">
+                                    <Input
+                                        type="text"
+                                        value={youtubeLink}
+                                        onChange={(e) => setYoutubeLink(e.target.value)}
+                                        placeholder="Enter YouTube link"
+                                        className="bg-slate-700 border-slate-600 text-slate-100 placeholder-slate-400"
+                                        disabled={isAddingSong}
+                                    />
+                                    <Button
+                                        onClick={addSong}
+                                        disabled={isAddingSong}
+                                        className="bg-amber-400 text-slate-900 hover:bg-amber-500"
+                                    >
+                                        {isAddingSong ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Music className="mr-2 h-4 w-4" />
+                                        )}
+                                        {isAddingSong ? "Adding..." : "Add Song"}
+                                    </Button>
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
                 </CardContent>
-                <CardFooter className="border-t border-slate-800 p-4">
-                </CardFooter>
+
             </Card>
         </div>
     );

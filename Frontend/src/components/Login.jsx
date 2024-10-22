@@ -49,6 +49,7 @@ export default function Login() {
             
             login({
               user: parsedData.user.username,
+              email: parsedData.user.email,
               message: parsedData.message,
               accessToken: parsedData.tokens.accessToken,
               refreshToken: parsedData.tokens.refreshToken,

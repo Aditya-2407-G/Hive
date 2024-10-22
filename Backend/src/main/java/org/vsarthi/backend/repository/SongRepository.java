@@ -20,4 +20,6 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     // Modified to include queue position in sorting for non-current songs
     @Query("SELECT s FROM Song s WHERE s.room.id = :roomId AND s.isCurrent = false ORDER BY s.upvotes DESC, s.queuePosition ASC")
     List<Song> findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(@Param("roomId") Long roomId);
+
+    List<Song> findByRoomId(Long roomId);
 }

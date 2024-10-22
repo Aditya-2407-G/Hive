@@ -1,6 +1,5 @@
 package org.vsarthi.backend.contoller;
 
-import lombok.Data;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -9,15 +8,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.vsarthi.backend.config.WebSocketEventListener;
 import org.vsarthi.backend.model.*;
+import org.vsarthi.backend.service.LeaveRoomMessage;
 import org.vsarthi.backend.service.RoomService;
 
 import java.util.List;
-import java.util.Set;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -25,13 +22,11 @@ public class RoomController {
 
     private final RoomService roomService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final WebSocketEventListener webSocketEventListener;
 
     @Autowired
-    public RoomController(RoomService roomService, SimpMessagingTemplate messagingTemplate, WebSocketEventListener webSocketEventListener) {
+    public RoomController(RoomService roomService, SimpMessagingTemplate messagingTemplate) {
         this.roomService = roomService;
         this.messagingTemplate = messagingTemplate;
-        this.webSocketEventListener = webSocketEventListener;
     }
 
     @PostMapping
@@ -98,13 +93,6 @@ public class RoomController {
         return ResponseEntity.ok(room);
     }
 
-//    @DeleteMapping("/{roomId}/close")
-//    public ResponseEntity<?> closeRoom(@PathVariable Long roomId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
-//        roomService.closeRoom(roomId, userPrincipal.getUser());
-//        return ResponseEntity.ok().build();
-//    }
-
-    //websocket endpoint
 
     @MessageMapping("/room/{roomId}/join")
     @SendTo("/topic/room/{roomId}/activeUsers")
@@ -115,18 +103,13 @@ public class RoomController {
 
     @MessageMapping("/room/{roomId}/leave")
     @SendTo("/topic/room/{roomId}/activeUsers")
-    public Integer leaveRoom(@DestinationVariable Long roomId, SimpMessageHeaderAccessor headerAccessor) {
+    public Integer leaveRoom(
+            @DestinationVariable Long roomId,
+            @Payload LeaveRoomMessage message,
+            SimpMessageHeaderAccessor headerAccessor
+    ) {
         String sessionId = headerAccessor.getSessionId();
-        return roomService.removeActiveUser(roomId, sessionId);
-    }
-
-    private String getUsername(SimpMessageHeaderAccessor headerAccessor) {
-        if (headerAccessor.getUser() instanceof UsernamePasswordAuthenticationToken authentication) {
-            if (authentication.getPrincipal() instanceof UserPrincipal userPrincipal) {
-                return userPrincipal.getUsername();
-            }
-        }
-        throw new RuntimeException("User not authenticated");
+        return roomService.leaveRoom(roomId, sessionId, message.getEmail());
     }
 
     @MessageMapping("/room/{roomId}/close")

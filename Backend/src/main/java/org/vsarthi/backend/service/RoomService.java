@@ -472,4 +472,42 @@ public class RoomService {
             throw new RuntimeException("Failed to remove song: " + e.getMessage(), e);
         }
     }
+
+    @Transactional
+    public Integer leaveRoom(Long roomId, String sessionId, String email) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        Set<String> roomSessions = activeSessionsInRoom.get(roomId);
+        if(roomSessions != null) {
+            roomSessions.remove(sessionId);
+        }
+
+        // Check if the leaving user is the creator
+        if(room.getCreator().getEmail().equals(email)) {
+            // Reset all votes for songs in the room
+            List<Song> roomSongs = songRepository.findByRoomId(roomId);
+            for(Song song : roomSongs) {
+                song.setUpvotes(0);
+                song.setVotes(new ArrayList<>());
+                // Clear all existing votes from the vote repository
+                voteRepository.deleteBySong(song);
+
+                // Reset current flag if it was playing
+                if(song.isCurrent()) {
+                    song.setCurrent(false);
+                }
+            }
+            songRepository.saveAll(roomSongs);
+
+            // Notify all clients that the creator left
+            messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+
+            // Clear active sessions for this room
+            activeSessionsInRoom.remove(roomId);
+            return 0;
+        }
+
+        return roomSessions != null ? roomSessions.size() : 0;
+    }
 }
