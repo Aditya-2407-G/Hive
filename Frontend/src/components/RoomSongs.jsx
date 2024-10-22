@@ -170,13 +170,18 @@ const RoomSongs = () => {
         setClient(stompClient);
 
         return () => {
+
+            const leaveMessage = {
+                email : auth.email,
+            }
             if (stompClient.connected) {
                 stompClient.publish({
                     destination: `/app/room/${roomId}/leave`,
-                    body: JSON.stringify({}),
+                    body: JSON.stringify(leaveMessage),
                 });
             }
             stompClient.deactivate();
+            navigate("/home");
         };
     }, [roomId, navigate]);
 

@@ -136,7 +136,6 @@ public class RoomService {
         return result;
     }
 
-    @Transactional
     public Song vote(Long songId, Users user, boolean isUpvote) {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
@@ -493,10 +492,11 @@ public class RoomService {
                 // Clear all existing votes from the vote repository
                 voteRepository.deleteBySong(song);
 
-                // Reset current flag if it was playing
-                if(song.isCurrent()) {
-                    song.setCurrent(false);
+                // Reset queue position for non-current songs
+                if(!song.isCurrent()) {
+                    song.setQueuePosition(null);
                 }
+
             }
             songRepository.saveAll(roomSongs);
 
