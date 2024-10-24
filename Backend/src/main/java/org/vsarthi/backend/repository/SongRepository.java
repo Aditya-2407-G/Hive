@@ -1,12 +1,12 @@
 package org.vsarthi.backend.repository;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.vsarthi.backend.model.Song;
-import org.vsarthi.backend.model.Room;
-import java.util.Optional;
-import java.util.List;
 
 public interface SongRepository extends JpaRepository<Song, Long> {
     // Modified to include queue position in sorting

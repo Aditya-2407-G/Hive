@@ -34,15 +34,17 @@ public class RoomService {
     private final YouTubeService youTubeService;
     private final Map<Long, Set<String>> activeSessionsInRoom = new ConcurrentHashMap<>();
     private final SimpMessageSendingOperations messagingTemplate;
+    private final CachedVotingService cachedVotingService;
 
     @Autowired
-    public RoomService(RoomRepository roomRepository, SongRepository songRepository, VoteRepository voteRepository, UserRepository userRepository, YouTubeService youTubeService, SimpMessageSendingOperations messagingTemplate) {
+    public RoomService(RoomRepository roomRepository, SongRepository songRepository, VoteRepository voteRepository, UserRepository userRepository, YouTubeService youTubeService, SimpMessageSendingOperations messagingTemplate, CachedVotingService cachedVotingService) {
         this.roomRepository = roomRepository;
         this.songRepository = songRepository;
         this.voteRepository = voteRepository;
         this.userRepository = userRepository;
         this.youTubeService = youTubeService;
         this.messagingTemplate = messagingTemplate;
+        this.cachedVotingService = cachedVotingService;
     }
 
     @Transactional
@@ -136,7 +138,7 @@ public class RoomService {
         return result;
     }
 
-    public Song vote(Long songId, Users user, boolean isUpvote) {
+    public Song vote(Long songId, Users user) {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
 
@@ -147,6 +149,7 @@ public class RoomService {
 
         Room room = song.getRoom();
 
+        // Check if user has joined the room
         boolean userJoined = room.getJoinedUsers().stream()
                 .anyMatch(joinedUser -> joinedUser.getId().equals(user.getId()));
 
@@ -154,32 +157,29 @@ public class RoomService {
             throw new RuntimeException("User has not joined the room");
         }
 
+        // Check if user has already voted
         Optional<Vote> existingVote = voteRepository.findByUserIdAndSongId(user.getId(), songId);
 
-        if (existingVote.isPresent()) {
-            throw new RuntimeException("User has already voted for this song");
-        } else {
+        if (existingVote.isEmpty()) {
+            // Create new vote
             Vote vote = new Vote();
             vote.setSong(song);
             vote.setUser(user);
-            vote.setUpvote(isUpvote);
+            vote.setUpvote(true);
             voteRepository.save(vote);
-            updateSongVotes(song, isUpvote ? 1 : -1);
-        }
 
-        // Get updated song list with new vote counts
-        List<Song> updatedSongs = getSongsInRoom(room.getId());
-        messagingTemplate.convertAndSend("/topic/room/" + room.getId() + "/songs", updatedSongs);
+            // Increment song's upvote count
+            song.setUpvotes(song.getUpvotes() + 1);
+            songRepository.save(song);
+
+            // Get updated song list with new vote counts
+            List<Song> updatedSongs = getSongsInRoom(room.getId());
+            messagingTemplate.convertAndSend("/topic/room/" + room.getId() + "/songs", updatedSongs);
+        } else {
+            throw new RuntimeException("User has already voted for this song");
+        }
 
         return song;
-    }
-
-    @Transactional
-    public void updateSongVotes(Song song, int change) {
-        if (change > 0) {
-            song.setUpvotes(song.getUpvotes() + change);
-        }
-        songRepository.save(song);
     }
 
 
@@ -265,7 +265,28 @@ public class RoomService {
             throw new RuntimeException("You are not the creator of the room");
         }
 
-        roomRepository.delete(room);
+        try {
+            // Clear the joined users set
+            room.getJoinedUsers().clear();
+            roomRepository.save(room);  // Save to update the join table
+
+            // Clean up all votes for songs in this room
+            List<Song> roomSongs = songRepository.findByRoomId(roomId);
+            for (Song song : roomSongs) {
+                voteRepository.deleteBySong(song);
+            }
+
+            // Clean up active sessions
+            activeSessionsInRoom.remove(roomId);
+
+            // Finally delete the room (this will cascade to songs due to orphanRemoval=true)
+            roomRepository.delete(room);
+
+            // Flush to ensure immediate deletion
+            roomRepository.flush();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete room: " + e.getMessage(), e);
+        }
     }
 
 
@@ -358,6 +379,8 @@ public class RoomService {
         endedSong.setQueuePosition(Integer.MAX_VALUE); // Place at end of queue
         voteRepository.deleteBySong(endedSong);
         songRepository.save(endedSong);
+
+        cachedVotingService.clearVoteCache(songId);
 
         // Find next song with highest votes
         List<Song> remainingSongs = songRepository.findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(roomId);
@@ -454,7 +477,7 @@ public class RoomService {
 
             // Remove the song from the room's song set
             room.getSongs().remove(song);
-
+            cachedVotingService.clearVoteCache(songId);
             // Delete the song
             songRepository.delete(song);
 
@@ -491,6 +514,7 @@ public class RoomService {
                 song.setVotes(new ArrayList<>());
                 // Clear all existing votes from the vote repository
                 voteRepository.deleteBySong(song);
+                cachedVotingService.clearVoteCache(song.getId());
 
                 // Reset queue position for non-current songs
                 if(!song.isCurrent()) {

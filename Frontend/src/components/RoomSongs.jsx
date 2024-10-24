@@ -22,20 +22,21 @@ import {
     Play,
     Pause,
     SkipForward,
-    PlayCircle, 
-    Trash2
+    PlayCircle,
+    Trash2,
 } from "lucide-react";
 import { useApi } from "@/hooks/api";
 import { useAuth } from "@/context/AuthProvider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";   
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 
-const RoomSongs = () => {
-    const location = useLocation();
+export default function RoomSongs() {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const api = useApi();
     const { auth } = useAuth();
     const { toast } = useToast();
@@ -49,7 +50,9 @@ const RoomSongs = () => {
     const [activeUsers, setActiveUsers] = useState(0);
     const [youtubeLink, setYoutubeLink] = useState("");
     const [isAddingSong, setIsAddingSong] = useState(false);
-    const [loadingSongIds, setLoadingSongIds] = useState([]);
+    const [loadingVoteIds, setLoadingVoteIds] = useState([]);
+    const [loadingPlayNowIds, setLoadingPlayNowIds] = useState([]);
+    const [loadingDeleteIds, setLoadingDeleteIds] = useState([]);
     const [isPlaying, setIsPlaying] = useState(true);
     const playerRef = useRef(null);
 
@@ -58,18 +61,18 @@ const RoomSongs = () => {
     useEffect(() => {
         fetchRoomData();
         checkIfCreator();
-    }, [roomId]);
+        setupWebSocket();
 
-    const updateSongsList = (songsList) => {
-        const current = songsList.find(song => song.current);
-        const queued = songsList
-            .filter(song => !song.current)
-            .sort((a, b) => b.upvotes - a.upvotes); 
-        
-        setCurrentSong(current || null);
-        setQueuedSongs(queued);
-        setSongs(songsList);
-    };
+        return () => {
+            if (client && client.connected) {
+                client.publish({
+                    destination: `/app/room/${roomId}/leave`,
+                    body: JSON.stringify({ email: auth.email }),
+                });
+            }
+            if (client) client.deactivate();
+        };
+    }, [roomId]);
 
     const fetchRoomData = async () => {
         try {
@@ -97,7 +100,7 @@ const RoomSongs = () => {
         }
     };
 
-    useEffect(() => {
+    const setupWebSocket = () => {
         const socket = new SockJS("http://localhost:8080/ws");
         const stompClient = new Client({
             webSocketFactory: () => socket,
@@ -107,180 +110,190 @@ const RoomSongs = () => {
 
         stompClient.onConnect = () => {
             console.log("Connected to WebSocket");
-
-            stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
-                const updatedSongs = JSON.parse(message.body);
-                updateSongsList(updatedSongs);
-            });
-
-            stompClient.subscribe(`/topic/room/${roomId}/status`, (message) => {
-                if (message.body === "CLOSED") {
-                    navigate("/home");
-                }
-                else if(message.body === "CREATOR_LEFT") {
-                    toast({
-                        title: "Room Closed",
-                        description: "The room creator has left. You will be redirected to the home page.",
-                        variant: "destructive",
-                    });
-
-                    setTimeout(() => {
-                        navigate("/home");
-                    }, 2000);
-                }
-            });
-
-            stompClient.subscribe(`/topic/room/${roomId}/votes`, (message) => {
-                const updatedSong = JSON.parse(message.body);
-                setSongs(prevSongs =>
-                    prevSongs
-                        .map(song => song.id === updatedSong.id ? updatedSong : song)
-                        .sort((a, b) => b.upvotes - a.upvotes)
-                );
-            });
-
-            stompClient.subscribe(`/topic/room/${roomId}/song-ended`, (message) => {
-                const { endedSongId, newSongOrder } = JSON.parse(message.body);
-                setSongs(prevSongs => {
-                    const updatedSongs = newSongOrder.map(id => {
-                        const song = prevSongs.find(s => s.id === id);
-                        if (!song) return null;
-                        return {
-                            ...song,
-                            upvotes: song.id === endedSongId ? 0 : song.upvotes,
-                            current: id === newSongOrder[0]
-                        };
-                    }).filter(Boolean);
-                    updateSongsList(updatedSongs);
-                    return updatedSongs;
-                });
-            });
-
-            stompClient.subscribe(`/topic/room/${roomId}/activeUsers`, (message) => {
-                setActiveUsers(parseInt(message.body));
-            });
-
-            stompClient.publish({
-                destination: `/app/room/${roomId}/join`,
-                body: JSON.stringify({}),
-            });
+            setupSubscriptions(stompClient);
         };
 
         stompClient.activate();
         setClient(stompClient);
+    };
 
-        return () => {
+    const setupSubscriptions = (stompClient) => {
+        stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
+            const updatedSongs = JSON.parse(message.body);
+            updateSongsList(updatedSongs);
+        });
 
-            const leaveMessage = {
-                email : auth.email,
+        stompClient.subscribe(`/topic/room/${roomId}/status`, (message) => {
+            if (message.body === "CLOSED" || message.body === "CREATOR_LEFT") {
+                handleRoomClosure(message.body);
             }
-            if (stompClient.connected) {
-                stompClient.publish({
-                    destination: `/app/room/${roomId}/leave`,
-                    body: JSON.stringify(leaveMessage),
-                });
+        });
+
+        stompClient.subscribe(
+            `/topic/room/${roomId}/vote-update`,
+            (message) => {
+                const voteUpdate = JSON.parse(message.body);
+                handleVoteUpdate(voteUpdate);
             }
-            stompClient.deactivate();
+        );
+
+        stompClient.subscribe(`/topic/room/${roomId}/votes`, (message) => {
+            const updatedSong = JSON.parse(message.body);
+            updateSongVotes(updatedSong);
+        });
+
+        stompClient.subscribe(`/topic/room/${roomId}/song-ended`, (message) => {
+            const { endedSongId, newSongOrder } = JSON.parse(message.body);
+            handleSongEnded(endedSongId, newSongOrder);
+        });
+
+        stompClient.subscribe(
+            `/topic/room/${roomId}/activeUsers`,
+            (message) => {
+                setActiveUsers(parseInt(message.body));
+            }
+        );
+
+        stompClient.publish({
+            destination: `/app/room/${roomId}/join`,
+            body: JSON.stringify({}),
+        });
+    };
+
+    const updateSongsList = (songsList) => {
+        const current = songsList.find((song) => song.current);
+        const queued = songsList
+            .filter((song) => !song.current)
+            .sort((a, b) => b.upvotes - a.upvotes);
+
+        setCurrentSong(current || null);
+        setQueuedSongs(queued);
+        setSongs(songsList);
+    };
+
+    const updateSongVotes = (updatedSong) => {
+        setSongs((prevSongs) =>
+            prevSongs
+                .map((song) =>
+                    song.id === updatedSong.id ? updatedSong : song
+                )
+                .sort((a, b) => b.upvotes - a.upvotes)
+        );
+    };
+
+    const handleSongEnded = (endedSongId, newSongOrder) => {
+        setSongs((prevSongs) => {
+            const updatedSongs = newSongOrder
+                .map((id) => {
+                    const song = prevSongs.find((s) => s.id === id);
+                    if (!song) return null;
+                    return {
+                        ...song,
+                        upvotes: song.id === endedSongId ? 0 : song.upvotes,
+                        current: id === newSongOrder[0],
+                    };
+                })
+                .filter(Boolean);
+            updateSongsList(updatedSongs);
+            return updatedSongs;
+        });
+    };
+
+    const handleRoomClosure = (reason) => {
+        const message =
+            reason === "CREATOR_LEFT"
+                ? "The room creator has left. You will be redirected to the home page."
+                : "The room has been closed. You will be redirected to the home page.";
+
+        toast({
+            title: "Room Closed",
+            description: message,
+            variant: "destructive",
+        });
+
+        setTimeout(() => {
             navigate("/home");
-        };
-    }, [roomId, navigate]);
+        }, 2000);
+    };
 
-    const handleLeaveRoom = async () => {
-
-        try {
-
-            const leaveMessage = {
-                email : auth.email,
-            }
-
-            if(client && client.connected) {
-                client.publish({
-                    destination: `/app/room/${roomId}/leave`,
-                    body: JSON.stringify(leaveMessage),
-                });
-            }
-
-            if(!isCreator) {
-                navigate("/home");
-            }
-            
-        } catch (error) {
-            console.error("Error leaving room:", error);
-            toast({
-                title: "Error",
-                description: "Failed to leave room. Please try again.",
-                variant: "destructive",
-            });
-            
-        }
-    }
+    const handleVoteUpdate = (update) => {
+        const updatedSongs = update.updatedSongs;
+        updateSongsList(updatedSongs);
+        // Clear the loading state for the voted song
+        setLoadingVoteIds((prev) =>
+            prev.filter((id) => !updatedSongs.some((song) => song.id === id))
+        );
+    };
 
     const handleVote = async (songId, isUpvote) => {
         try {
-            setLoadingSongIds(prev => [...prev, songId]);
-            await api.post(`/rooms/songs/${songId}/vote?isUpvote=${isUpvote}`);
+            setLoadingVoteIds((prev) => [...prev, songId]);
+
+            // Send vote to server
+            await api.post(`/rooms/songs/${songId}/vote`);
+
+            // The actual state update will now come through the WebSocket
+            // in handleVoteUpdate, so we don't need to update state here
+
             toast({
                 title: "Success",
                 description: "Vote submitted successfully!",
             });
         } catch (error) {
             console.error("Error voting on song:", error);
+            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
             toast({
                 title: "Error",
-                description: error.response?.data.error || "Failed to vote on song",
+                description:
+                    error.response?.data.error || "Failed to vote on song",
                 variant: "destructive",
             });
         } finally {
-            setLoadingSongIds(prev => prev.filter(id => id !== songId));
+            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
         }
     };
 
     const generateShareableLink = async () => {
         try {
-            const linkToShare = shareableLink || `${window.location.origin}/join/${roomId}`;
+            const linkToShare =
+                shareableLink || `${window.location.origin}/join/${roomId}`;
             await navigator.clipboard.writeText(linkToShare);
             toast({
                 title: "Link Copied!",
-                description: "Shareable link has been copied to your clipboard.",
+                description:
+                    "Shareable link has been copied to your clipboard.",
             });
         } catch (error) {
             console.error("Error generating shareable link:", error);
             toast({
                 title: "Error",
-                description: "Failed to generate shareable link. Please try again.",
+                description:
+                    "Failed to generate shareable link. Please try again.",
                 variant: "destructive",
             });
         }
     };
 
-    const youtubeOpts = {
-        height: "250",
-        width: "100%",
-        playerVars: {
-            autoplay: 1,
-        },
-    };
-
     const handlePlayNow = async (songId) => {
-        if (loadingSongIds.includes(songId)) return;
-        
         try {
-            setLoadingSongIds(prev => [...prev, songId]);
+            setLoadingPlayNowIds((prev) => [...prev, songId]);
             await api.post(`/rooms/${roomId}/songs/${songId}/play-now`);
         } catch (error) {
             console.error("Error playing song now:", error);
             toast({
                 title: "Error",
-                description: error.response?.data.error || "Failed to play song",
+                description:
+                    error.response?.data.error || "Failed to play song",
                 variant: "destructive",
             });
         } finally {
-            setLoadingSongIds(prev => prev.filter(id => id !== songId));
+            setLoadingPlayNowIds((prev) => prev.filter((id) => id !== songId));
         }
     };
 
     const handleSongDelete = async (songId) => {
         try {
+            setLoadingDeleteIds((prev) => [...prev, songId]);
             await api.delete(`/rooms/${roomId}/songs/${songId}/remove`);
             toast({
                 title: "Success",
@@ -290,16 +303,21 @@ const RoomSongs = () => {
             console.error("Error deleting song:", error);
             toast({
                 title: "Error",
-                description: error.response?.data.error || "Failed to delete song",
+                description:
+                    error.response?.data.error || "Failed to delete song",
                 variant: "destructive",
             });
+        } finally {
+            setLoadingDeleteIds((prev) => prev.filter((id) => id !== songId));
         }
-    }
+    };
 
     const onSongEnd = async () => {
         if (currentSong) {
             try {
-                await api.post(`/rooms/${roomId}/songs/${currentSong.id}/ended`);
+                await api.post(
+                    `/rooms/${roomId}/songs/${currentSong.id}/ended`
+                );
             } catch (error) {
                 console.error("Error handling song end:", error);
                 toast({
@@ -312,7 +330,8 @@ const RoomSongs = () => {
     };
 
     const isValidYoutubeLink = (url) => {
-        const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
+        const youtubeRegex =
+            /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
         return youtubeRegex.test(url);
     };
 
@@ -337,7 +356,8 @@ const RoomSongs = () => {
 
         setIsAddingSong(true);
         try {
-            await api.post(`/rooms/${roomId}/songs`, 
+            await api.post(
+                `/rooms/${roomId}/songs`,
                 { youtubeLink },
                 { headers: { Authorization: `Bearer ${auth.accessToken}` } }
             );
@@ -372,7 +392,9 @@ const RoomSongs = () => {
     const handleSkip = async () => {
         if (currentSong) {
             try {
-                await api.post(`/rooms/${roomId}/songs/${currentSong.id}/ended`);
+                await api.post(
+                    `/rooms/${roomId}/songs/${currentSong.id}/ended`
+                );
             } catch (error) {
                 console.error("Error skipping song:", error);
                 toast({
@@ -384,130 +406,249 @@ const RoomSongs = () => {
         }
     };
 
+    const handleLeaveRoom = async () => {
+        try {
+            if (client && client.connected) {
+                client.publish({
+                    destination: `/app/room/${roomId}/leave`,
+                    body: JSON.stringify({ email: auth.email }),
+                });
+            }
+
+            if (!isCreator) {
+                navigate("/home");
+            }
+        } catch (error) {
+            console.error("Error leaving room:", error);
+            toast({
+                title: "Error",
+                description: "Failed to leave room. Please try again.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleDeleteRoom = async () => {
+        try {
+            await api.post(`/rooms/${roomId}/close`);
+            toast({
+                title: "Success",
+                description: "Room deleted successfully!",
+            });
+            navigate("/home");
+        } catch (error) {
+            console.error("Error deleting room:", error);
+            toast({
+                title: "Error",
+                description:
+                    error.response?.data.error || "Failed to delete room",
+                variant: "destructive",
+            });
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen bg-slate-950">
-                <Loader className="w-8 h-8 text-amber-400 animate-spin" />
-                <p className="ml-2 text-amber-400">Hang tight, we're getting you into the room</p>
+                <Loader className="w-12 h-12 text-amber-400 animate-spin" />
+                <p className="ml-4 text-xl text-amber-400 animate-pulse">
+                    Hang on tight, while we let you in!
+                </p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
-            <Card className="bg-slate-900 border-slate-800 shadow-xl max-w-6xl mx-auto">
-                <CardHeader className="border-b border-slate-800">
-                    <CardTitle className="text-3xl font-bold text-amber-400 flex items-center justify-between">
-                        <div className="flex items-center">
-                            <Music className="mr-2" /> {roomName || `Room ${roomId}`}
+        <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 p-4 md:p-8">
+            <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
+                <CardHeader className="border-b border-slate-700">
+                    <CardTitle className="text-3xl font-bold text-amber-400 flex flex-col sm:flex-row items-center justify-between">
+                        <div className="flex items-center mb-4 sm:mb-0">
+                            <Music className="mr-2" />{" "}
+                            {roomName || `Room ${roomId}`}
                         </div>
-                        <Badge variant="secondary" className="text-sm bg-slate-800 text-amber-400">
-                            <Users className="w-4 h-4 mr-1" />
-                            {activeUsers} active
-                        </Badge>
-                        <Button
-                            onClick={handleLeaveRoom}
-                            variant="destructive"    
-                            className="bg-rose-500 hover:bg-rose-600 text-slate-900"
-                        >{isCreator ? "Close Room" : "Leave Room"}</Button>
+                        <div className="flex items-center space-x-4">
+                            <Badge
+                                variant="secondary"
+                                className="text-sm bg-slate-700 text-amber-400"
+                            >
+                                <Users className="w-4 h-4 mr-1" />
+                                {activeUsers} active
+                            </Badge>
+                            <Button
+                                onClick={handleLeaveRoom}
+                                variant="destructive"
+                                className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
+                            >
+                                Leave Room
+                            </Button>
+                            {isCreator && (
+                                <Button
+                                    onClick={handleDeleteRoom}
+                                    variant="destructive"
+                                    className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
+                                >
+                                    Delete Room
+                                </Button>
+                            )}
+                        </div>
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row gap-8">
-                        <div className="w-full md:w-3/5 order-2 md:order-1">
-                            <div className="flex flex-row justify-between mb-4">
-                                <h3 className="text-2xl font-semibold text-amber-400">
+                    <div className="flex flex-col lg:flex-row gap-8">
+                        <div className="w-full lg:w-3/5 order-2 lg:order-1">
+                            <div className="flex flex-col sm:flex-row justify-between mb-4">
+                                <h3 className="text-2xl font-semibold text-amber-400 mb-2 sm:mb-0">
                                     Up Next
                                 </h3>
                                 <Button
                                     onClick={generateShareableLink}
-                                    className="w-50 bg-amber-400 hover:bg-amber-500 text-slate-900 font-semibold"
+                                    className="w-full sm:w-auto bg-amber-400 hover:bg-amber-500 text-slate-900 font-semibold transition-colors duration-200"
                                 >
-                                    <Share2 className="mr-2 h-4 w-4" /> Share 
+                                    <Share2 className="mr-2 h-4 w-4" /> Share
                                 </Button>
                             </div>
-                            <ScrollArea className="h-[500px] rounded-md border border-slate-700 p-4">
-                {songs.slice(1).map((song, index) => (
-                    <React.Fragment key={song.id}>
-                        {index > 0 && (
-                            <Separator className="my-2 bg-slate-700" />
-                        )}
-                        <div className="flex justify-between items-center py-2">
-                            <div className="flex-1">
-                                <h4 className="text-lg font-medium text-amber-300">
-                                    {song.title}
-                                </h4>
-                                <p className="text-sm text-slate-400">
-                                    Upvotes: {song.upvotes}
-                                </p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Button
-                                    onClick={() => handleVote(song.id, true)}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
-                                >
-                                    {loadingSongIds.includes(song.id) ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <ThumbsUp className="h-5 w-5" />
-                                    )}
-                                </Button>
-                                {isCreator && (
-
-                                    <>
-                                    <Button
-                                        onClick={() => handlePlayNow(song.id)}
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
-                                        disabled={loadingSongIds.includes(song.id)}
+                            <ScrollArea className="h-[500px] rounded-md border border-slate-600 p-4 bg-slate-800/30 backdrop-blur-sm">
+                                <AnimatePresence>
+                                    {queuedSongs.map((song, index) => (
+                                        <motion.div
+                                            key={song.id}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -20 }}
+                                            transition={{ duration: 0.3 }}
+                                            layout
                                         >
-                                        {loadingSongIds.includes(song.id) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <PlayCircle className="h-5 w-5" />
-                                        )}
-                                    </Button>
-
-                                    <Button
-                                        onClick={() => handleSongDelete(song.id)}
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
-                                        disabled={loadingSongIds.includes(song.id)}
-                                    >
-                                        {loadingSongIds.includes(song.id) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (   
-                                            <Trash2 className="h-5 w-5" />
-                                        )}
-
-                                    </Button>
-                                    
-                                        </>
-                                )}
-                            </div>
+                                            {index > 0 && (
+                                                <Separator className="my-2 bg-slate-600" />
+                                            )}
+                                            <div className="flex justify-between items-center py-2">
+                                                <div className="flex-1">
+                                                    <h4 className="text-lg font-medium text-amber-300">
+                                                        {song.title}
+                                                    </h4>
+                                                    <motion.p
+                                                        className="text-sm text-slate-400"
+                                                        key={`upvotes-${song.id}-${song.upvotes}`}
+                                                        initial={{
+                                                            scale: 1.2,
+                                                            color: "#fbbf24",
+                                                        }}
+                                                        animate={{
+                                                            scale: 1,
+                                                            color: "#94a3b8",
+                                                        }}
+                                                        transition={{
+                                                            duration: 0.3,
+                                                        }}
+                                                    >
+                                                        Upvotes: {song.upvotes}
+                                                    </motion.p>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <Button
+                                                        onClick={() =>
+                                                            handleVote(
+                                                                song.id,
+                                                                true
+                                                            )
+                                                        }
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
+                                                        disabled={loadingVoteIds.includes(
+                                                            song.id
+                                                        )}
+                                                    >
+                                                        {loadingVoteIds.includes(
+                                                            song.id
+                                                        ) ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <ThumbsUp className="h-5 w-5" />
+                                                        )}
+                                                    </Button>
+                                                    {isCreator && (
+                                                        <>
+                                                            <Button
+                                                                onClick={() =>
+                                                                    handlePlayNow(
+                                                                        song.id
+                                                                    )
+                                                                }
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
+                                                                disabled={loadingPlayNowIds.includes(
+                                                                    song.id
+                                                                )}
+                                                            >
+                                                                {loadingPlayNowIds.includes(
+                                                                    song.id
+                                                                ) ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <PlayCircle className="h-5 w-5" />
+                                                                )}
+                                                            </Button>
+                                                            <Button
+                                                                onClick={() =>
+                                                                    handleSongDelete(
+                                                                        song.id
+                                                                    )
+                                                                }
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
+                                                                disabled={loadingDeleteIds.includes(
+                                                                    song.id
+                                                                )}
+                                                            >
+                                                                {loadingDeleteIds.includes(
+                                                                    song.id
+                                                                ) ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="h-5 w-5" />
+                                                                )}
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            </ScrollArea>
                         </div>
-                    </React.Fragment>
-                ))}
-            </ScrollArea>
-
-                        </div>
-                        <div className="w-full md:w-2/5  order-1 md:order-2">
+                        <div className="w-full lg:w-2/5 order-1 lg:order-2">
                             <h3 className="text-2xl font-semibold text-amber-400 mb-4">
                                 Now Playing
                             </h3>
-                            {songs.length > 0 ? (
-                                <div className="bg-slate-800 rounded-lg p-4">
+                            {currentSong ? (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.5 }}
+                                    className="bg-slate-700 rounded-lg p-4 shadow-lg"
+                                >
                                     <h4 className="text-xl text-amber-300 mb-3">
-                                        {songs[0].title}
+                                        {currentSong.title}
                                     </h4>
-                                    <div className="aspect-w-16 aspect-h-9 mb-4">
+                                    <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
                                         <YouTube
-                                            videoId={songs[0].youtubeLink.split("v=")[1]}
-                                            opts={youtubeOpts}
+                                            videoId={
+                                                currentSong.youtubeLink.split(
+                                                    "v="
+                                                )[1]
+                                            }
+                                            opts={{
+                                                height: "100%",
+                                                width: "100%",
+                                                playerVars: {
+                                                    autoplay: 1,
+                                                },
+                                            }}
                                             onEnd={onSongEnd}
                                             ref={playerRef}
                                         />
@@ -516,62 +657,67 @@ const RoomSongs = () => {
                                         <div className="flex justify-center space-x-4">
                                             <Button
                                                 onClick={handlePlayPause}
-                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500"
+                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200"
                                             >
-                                                {isPlaying ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                                                {isPlaying ? (
+                                                    <Pause className="mr-2 h-4 w-4" />
+                                                ) : (
+                                                    <Play className="mr-2 h-4 w-4" />
+                                                )}
                                                 {isPlaying ? "Pause" : "Play"}
                                             </Button>
                                             <Button
                                                 onClick={handleSkip}
-                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500"
+                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200"
                                             >
                                                 <SkipForward className="mr-2 h-4 w-4" />
                                                 Skip
                                             </Button>
                                         </div>
                                     )}
-                                </div>
+                                </motion.div>
                             ) : (
                                 <p className="text-slate-400 italic">
                                     No songs in the queue.
                                 </p>
                             )}
-                            <Card className="bg-slate-800 border-slate-700 mt-8 shadow-lg">
+                            <Card className="bg-slate-700 border-slate-600 mt-8 shadow-lg">
                                 <CardHeader>
                                     <CardTitle className="text-2xl text-amber-400">
                                         Add a Song
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="flex space-x-2">
+                                <CardContent className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                                     <Input
                                         type="text"
                                         value={youtubeLink}
-                                        onChange={(e) => setYoutubeLink(e.target.value)}
+                                        onChange={(e) =>
+                                            setYoutubeLink(e.target.value)
+                                        }
                                         placeholder="Enter YouTube link"
-                                        className="bg-slate-700 border-slate-600 text-slate-100 placeholder-slate-400"
+                                        className="bg-slate-600 border-slate-500 text-slate-100 placeholder-slate-400 flex-grow"
                                         disabled={isAddingSong}
                                     />
                                     <Button
                                         onClick={addSong}
                                         disabled={isAddingSong}
-                                        className="bg-amber-400 text-slate-900 hover:bg-amber-500"
+                                        className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200 w-full sm:w-auto"
                                     >
                                         {isAddingSong ? (
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         ) : (
                                             <Music className="mr-2 h-4 w-4" />
                                         )}
-                                        {isAddingSong ? "Adding..." : "Add Song"}
+                                        {isAddingSong
+                                            ? "Adding..."
+                                            : "Add Song"}
                                     </Button>
                                 </CardContent>
                             </Card>
                         </div>
                     </div>
                 </CardContent>
-
             </Card>
         </div>
     );
 }
-
-export default RoomSongs;

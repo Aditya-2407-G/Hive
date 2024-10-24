@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
           setAuth({
             isAuthenticated: true,
             user,
-            email,
+            email: storedUserEmail,  // Fixed: Using storedUserEmail instead of undefined email
             message: null,
             accessToken: storedAccessToken,
             refreshToken: storedRefreshToken,

@@ -11,6 +11,7 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.vsarthi.backend.model.*;
+import org.vsarthi.backend.service.CachedVotingService;
 import org.vsarthi.backend.service.LeaveRoomMessage;
 import org.vsarthi.backend.service.RoomService;
 
@@ -22,11 +23,13 @@ public class RoomController {
 
     private final RoomService roomService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final CachedVotingService cachedVotingService;
 
     @Autowired
-    public RoomController(RoomService roomService, SimpMessagingTemplate messagingTemplate) {
+    public RoomController(RoomService roomService , SimpMessagingTemplate messagingTemplate, CachedVotingService cachedVotingService) {
         this.roomService = roomService;
         this.messagingTemplate = messagingTemplate;
+        this.cachedVotingService = cachedVotingService;
     }
 
     @PostMapping
@@ -68,11 +71,13 @@ public class RoomController {
     }
 
     @PostMapping("/songs/{songId}/vote")
-    public ResponseEntity<Song> voteSong(@PathVariable Long songId, @RequestParam boolean isUpvote, @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        Song updatedSong = roomService.vote(songId, userPrincipal.getUser(), isUpvote);
-        Long roomId = updatedSong.getRoom().getId();
-        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", roomService.getSongsInRoom(roomId));
-        return ResponseEntity.ok(updatedSong);
+    public ResponseEntity<?> voteSong(@PathVariable Long songId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            Song updatedSong = cachedVotingService.vote(songId, userPrincipal.getUser());
+            return ResponseEntity.ok(updatedSong);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PostMapping("/{roomId}/generate-shareable-link")
@@ -112,9 +117,8 @@ public class RoomController {
         return roomService.leaveRoom(roomId, sessionId, message.getEmail());
     }
 
-    @MessageMapping("/room/{roomId}/close")
-    @SendTo("/topic/room/{roomId}/status")
-    public String closeRoom(@DestinationVariable Long roomId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+    @PostMapping("/{roomId}/close")
+    public String closeRoom(@PathVariable Long roomId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         roomService.closeRoom(roomId, userPrincipal.getUser());
         return "CLOSED";
     }
@@ -141,6 +145,7 @@ public class RoomController {
     public ResponseEntity<?> handleSongEnded(@PathVariable Long roomId, @PathVariable Long songId) {
         try {
             SongEndedResponse response = roomService.handleSongEnded(roomId, songId);
+            cachedVotingService.clearVoteCache(songId); // Clear vote cache when song ends
             messagingTemplate.convertAndSend("/topic/room/" + roomId + "/song-ended", response);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
