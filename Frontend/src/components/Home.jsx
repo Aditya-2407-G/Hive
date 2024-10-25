@@ -15,11 +15,12 @@ import {
     Loader2,
 } from "lucide-react";
 import { useApi } from "@/hooks/api";
+import RoomList from "./RoomList";
 
 export default function Home() {
     const apiInterceptor = useApi();
     const { auth, logout } = useAuth();
-    const [rooms, setRooms] = useState([]);
+    const [rooms,   setRooms] = useState([]);
     const [roomName, setRoomName] = useState("");
     const [shareableLink, setShareableLink] = useState("");
     const [isCreating, setIsCreating] = useState(false);
@@ -56,12 +57,13 @@ export default function Home() {
         } finally {
             setIsLoggingOut(false);
         }
-    }
+    };
 
     const fetchUserRooms = async () => {
         try {
             setLoading(true);
-            const response = await apiInterceptor.get('/rooms');
+            const response = await apiInterceptor.get("/rooms");
+            console.log("Rooms:", response);
             setRooms(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error("Error fetching rooms:", error);
@@ -79,7 +81,14 @@ export default function Home() {
     const createRoom = async () => {
         setIsCreatingRoom(true);
         try {
-            await apiInterceptor.post('/rooms', { roomName });
+            await apiInterceptor.post("/rooms", 
+                roomName.trim(),  
+                {
+                    headers: {
+                        'Content-Type': 'text/plain'  
+                    }
+                }
+            );
             setRoomName("");
             fetchUserRooms();
             setIsCreating(false);
@@ -92,7 +101,8 @@ export default function Home() {
             toast({
                 variant: "destructive",
                 title: "Error creating room",
-                description: error.response.data.error || "Please try again later",
+                description:
+                    error.response.data.error || "Please try again later",
             });
         } finally {
             setIsCreatingRoom(false);
@@ -203,35 +213,7 @@ export default function Home() {
                                     </p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {rooms.map((room) => (
-                                        <motion.div
-                                            key={room.id}
-                                            whileHover={{ scale: 1.03 }}
-                                            whileTap={{ scale: 0.98 }}
-                                        >
-                                            <Card
-                                                className="bg-slate-800 border-slate-700 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-[#FCD34D]/20"
-                                                onClick={() => viewSongs(room)}
-                                            >
-                                                <CardContent className="p-6">
-                                                    <h3 className="text-xl font-semibold mb-2 text-[#FCD34D]">
-                                                        {room.name}
-                                                    </h3>
-                                                    <p className="text-sm text-slate-300 mb-4">
-                                                        Room ID: {room.id}
-                                                    </p>
-                                                    <div className="flex items-center text-slate-400">
-                                                        <LinkIcon className="h-4 w-4 mr-2" />
-                                                        <span className="text-xs truncate">
-                                                            {room.shareableLink}
-                                                        </span>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        </motion.div>
-                                    ))}
-                                </div>
+                                <RoomList rooms={rooms} viewSongs={viewSongs} />
                             )}
                         </CardContent>
                     </Card>

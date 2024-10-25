@@ -225,33 +225,36 @@ export default function RoomSongs() {
         );
     };
 
-    const handleVote = async (songId, isUpvote) => {
+    const handleVote = async (songId) => {
         try {
-            setLoadingVoteIds((prev) => [...prev, songId]);
-
-            // Send vote to server
-            await api.post(`/rooms/songs/${songId}/vote`);
-
-            // The actual state update will now come through the WebSocket
-            // in handleVoteUpdate, so we don't need to update state here
-
-            toast({
-                title: "Success",
-                description: "Vote submitted successfully!",
-            });
+          setLoadingVoteIds((prev) => [...prev, songId]);
+    
+          // Send vote to server
+          const response = await api.post(`/rooms/songs/${songId}/vote`);
+          const updatedSong = response.data;
+    
+          // Update the songs state immediately
+          setSongs((prevSongs) =>
+            prevSongs.map((song) =>
+              song.id === updatedSong.id ? { ...song, upvotes: updatedSong.upvotes } : song
+            )
+          );
+    
+          toast({
+            title: "Success",
+            description: "Vote submitted successfully!",
+          });
         } catch (error) {
-            console.error("Error voting on song:", error);
-            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
-            toast({
-                title: "Error",
-                description:
-                    error.response?.data.error || "Failed to vote on song",
-                variant: "destructive",
-            });
+          console.error("Error voting on song:", error);
+          toast({
+            title: "Error",
+            description: error.response?.data.error || "Failed to vote on song",
+            variant: "destructive",
+          });
         } finally {
-            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
+          setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
         }
-    };
+      };
 
     const generateShareableLink = async () => {
         try {
