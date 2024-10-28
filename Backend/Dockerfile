@@ -13,8 +13,11 @@
 FROM maven:3-amazoncorretto-21 AS build
 # Copy the POM file first to leverage Docker cache for dependencies
 COPY pom.xml .
-# Copy the source code
-COPY src ./src
+
+# Copy the rest of the code
+COPY . .
+
+
 # Run Maven build
 RUN mvn clean package -DskipTests
 
