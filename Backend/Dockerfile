@@ -10,13 +10,10 @@
 
 
 # Build stage
-FROM maven:3-amazoncorretto-21 AS build
-# Copy the POM file first to leverage Docker cache for dependencies
-COPY pom.xml .
+FROM maven:3.9.4-eclipse-temurin-21 AS build
 
 # Copy the rest of the code
 COPY . .
-
 
 # Run Maven build
 RUN mvn clean package -DskipTests
