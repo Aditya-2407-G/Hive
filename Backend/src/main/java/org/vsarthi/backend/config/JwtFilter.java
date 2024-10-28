@@ -16,10 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.vsarthi.backend.model.UserPrincipal;
 import org.vsarthi.backend.service.JwtService;
-import org.vsarthi.backend.service.UserDetailsServiceImpl;
+import org.vsarthi.backend.DTO.UserDetailsServiceImpl;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {

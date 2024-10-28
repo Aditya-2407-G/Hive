@@ -1,6 +1,7 @@
 package org.vsarthi.backend.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.springframework.data.annotation.Version;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
@@ -34,6 +35,9 @@ public class Song {
     @ManyToOne
     @JoinColumn(name = "room_id")
     private Room room;
+
+    @Version
+    private Long version;
 
     @ManyToOne
     @JoinColumn(name = "added_by_id")

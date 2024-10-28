@@ -63,7 +63,6 @@ export default function Home() {
         try {
             setLoading(true);
             const response = await apiInterceptor.get("/rooms");
-            console.log("Rooms:", response);
             setRooms(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error("Error fetching rooms:", error);

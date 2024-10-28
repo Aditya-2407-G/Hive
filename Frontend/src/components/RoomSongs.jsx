@@ -1,37 +1,17 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import YouTube from "react-youtube";
-import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardContent,
-    CardFooter,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    Loader,
-    Music,
-    ThumbsUp,
-    Users,
-    Share2,
-    Loader2,
-    Play,
-    Pause,
-    SkipForward,
-    PlayCircle,
-    Trash2,
-} from "lucide-react";
+import { Loader, Share2 } from "lucide-react";
 import { useApi } from "@/hooks/api";
 import { useAuth } from "@/context/AuthProvider";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import SyncedPlayer from "./SyncedPlayer";
+import AddSongForm from "./AddSongForm";
+import SongQueue from "./SongQueue";
+import RoomHeader from "./RoomHeader";
 
 export default function RoomSongs() {
     const { roomId } = useParams();
@@ -53,8 +33,6 @@ export default function RoomSongs() {
     const [loadingVoteIds, setLoadingVoteIds] = useState([]);
     const [loadingPlayNowIds, setLoadingPlayNowIds] = useState([]);
     const [loadingDeleteIds, setLoadingDeleteIds] = useState([]);
-    const [isPlaying, setIsPlaying] = useState(true);
-    const playerRef = useRef(null);
 
     const { roomName, shareableLink } = location.state || {};
 
@@ -219,7 +197,6 @@ export default function RoomSongs() {
     const handleVoteUpdate = (update) => {
         const updatedSongs = update.updatedSongs;
         updateSongsList(updatedSongs);
-        // Clear the loading state for the voted song
         setLoadingVoteIds((prev) =>
             prev.filter((id) => !updatedSongs.some((song) => song.id === id))
         );
@@ -227,34 +204,32 @@ export default function RoomSongs() {
 
     const handleVote = async (songId) => {
         try {
-          setLoadingVoteIds((prev) => [...prev, songId]);
-    
-          // Send vote to server
-          const response = await api.post(`/rooms/songs/${songId}/vote`);
-          const updatedSong = response.data;
-    
-          // Update the songs state immediately
-          setSongs((prevSongs) =>
-            prevSongs.map((song) =>
-              song.id === updatedSong.id ? { ...song, upvotes: updatedSong.upvotes } : song
-            )
-          );
-    
-          toast({
-            title: "Success",
-            description: "Vote submitted successfully!",
-          });
+            setLoadingVoteIds((prev) => [...prev, songId]);
+            const response = await api.post(`/rooms/songs/${songId}/vote`);
+            const updatedSong = response.data;
+            setSongs((prevSongs) =>
+                prevSongs.map((song) =>
+                    song.id === updatedSong.id
+                        ? { ...song, upvotes: updatedSong.upvotes }
+                        : song
+                )
+            );
+            toast({
+                title: "Success",
+                description: "Vote submitted successfully!",
+            });
         } catch (error) {
-          console.error("Error voting on song:", error);
-          toast({
-            title: "Error",
-            description: error.response?.data.error || "Failed to vote on song",
-            variant: "destructive",
-          });
+            console.error("Error voting on song:", error);
+            toast({
+                title: "Error",
+                description:
+                    error.response?.data.error || "Failed to vote on song",
+                variant: "destructive",
+            });
         } finally {
-          setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
+            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
         }
-      };
+    };
 
     const generateShareableLink = async () => {
         try {
@@ -332,26 +307,11 @@ export default function RoomSongs() {
         }
     };
 
-    const isValidYoutubeLink = (url) => {
-        const youtubeRegex =
-            /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/;
-        return youtubeRegex.test(url);
-    };
-
     const addSong = async () => {
         if (!youtubeLink) {
             toast({
                 title: "Error",
                 description: "Please enter a YouTube link",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        if (!isValidYoutubeLink(youtubeLink)) {
-            toast({
-                title: "Error",
-                description: "Please enter a valid YouTube link",
                 variant: "destructive",
             });
             return;
@@ -378,17 +338,6 @@ export default function RoomSongs() {
             });
         } finally {
             setIsAddingSong(false);
-        }
-    };
-
-    const handlePlayPause = () => {
-        if (playerRef.current) {
-            if (isPlaying) {
-                playerRef.current.internalPlayer.pauseVideo();
-            } else {
-                playerRef.current.internalPlayer.playVideo();
-            }
-            setIsPlaying(!isPlaying);
         }
     };
 
@@ -464,39 +413,14 @@ export default function RoomSongs() {
     return (
         <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 p-4 md:p-8">
             <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
-                <CardHeader className="border-b border-slate-700">
-                    <CardTitle className="text-3xl font-bold text-amber-400 flex flex-col sm:flex-row items-center justify-between">
-                        <div className="flex items-center mb-4 sm:mb-0">
-                            <Music className="mr-2" />{" "}
-                            {roomName || `Room ${roomId}`}
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            <Badge
-                                variant="secondary"
-                                className="text-sm bg-slate-700 text-amber-400"
-                            >
-                                <Users className="w-4 h-4 mr-1" />
-                                {activeUsers} active
-                            </Badge>
-                            <Button
-                                onClick={handleLeaveRoom}
-                                variant="destructive"
-                                className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
-                            >
-                                Leave Room
-                            </Button>
-                            {isCreator && (
-                                <Button
-                                    onClick={handleDeleteRoom}
-                                    variant="destructive"
-                                    className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
-                                >
-                                    Delete Room
-                                </Button>
-                            )}
-                        </div>
-                    </CardTitle>
-                </CardHeader>
+                <RoomHeader
+                    roomName={roomName}
+                    roomId={roomId}
+                    activeUsers={activeUsers}
+                    isCreator={isCreator}
+                    onLeaveRoom={handleLeaveRoom}
+                    onDeleteRoom={handleDeleteRoom}
+                />
                 <CardContent className="p-6">
                     <div className="flex flex-col lg:flex-row gap-8">
                         <div className="w-full lg:w-3/5 order-2 lg:order-1">
@@ -511,212 +435,47 @@ export default function RoomSongs() {
                                     <Share2 className="mr-2 h-4 w-4" /> Share
                                 </Button>
                             </div>
-                            <ScrollArea className="h-[500px] rounded-md border border-slate-600 p-4 bg-slate-800/30 backdrop-blur-sm">
-                                <AnimatePresence>
-                                    {queuedSongs.map((song, index) => (
-                                        <motion.div
-                                            key={song.id}
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -20 }}
-                                            transition={{ duration: 0.3 }}
-                                            layout
-                                        >
-                                            {index > 0 && (
-                                                <Separator className="my-2 bg-slate-600" />
-                                            )}
-                                            <div className="flex justify-between items-center py-2">
-                                                <div className="flex-1">
-                                                    <h4 className="text-lg font-medium text-amber-300">
-                                                        {song.title}
-                                                    </h4>
-                                                    <motion.p
-                                                        className="text-sm text-slate-400"
-                                                        key={`upvotes-${song.id}-${song.upvotes}`}
-                                                        initial={{
-                                                            scale: 1.2,
-                                                            color: "#fbbf24",
-                                                        }}
-                                                        animate={{
-                                                            scale: 1,
-                                                            color: "#94a3b8",
-                                                        }}
-                                                        transition={{
-                                                            duration: 0.3,
-                                                        }}
-                                                    >
-                                                        Upvotes: {song.upvotes}
-                                                    </motion.p>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <Button
-                                                        onClick={() =>
-                                                            handleVote(
-                                                                song.id,
-                                                                true
-                                                            )
-                                                        }
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
-                                                        disabled={loadingVoteIds.includes(
-                                                            song.id
-                                                        )}
-                                                    >
-                                                        {loadingVoteIds.includes(
-                                                            song.id
-                                                        ) ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                        ) : (
-                                                            <ThumbsUp className="h-5 w-5" />
-                                                        )}
-                                                    </Button>
-                                                    {isCreator && (
-                                                        <>
-                                                            <Button
-                                                                onClick={() =>
-                                                                    handlePlayNow(
-                                                                        song.id
-                                                                    )
-                                                                }
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
-                                                                disabled={loadingPlayNowIds.includes(
-                                                                    song.id
-                                                                )}
-                                                            >
-                                                                {loadingPlayNowIds.includes(
-                                                                    song.id
-                                                                ) ? (
-                                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                                ) : (
-                                                                    <PlayCircle className="h-5 w-5" />
-                                                                )}
-                                                            </Button>
-                                                            <Button
-                                                                onClick={() =>
-                                                                    handleSongDelete(
-                                                                        song.id
-                                                                    )
-                                                                }
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors duration-200"
-                                                                disabled={loadingDeleteIds.includes(
-                                                                    song.id
-                                                                )}
-                                                            >
-                                                                {loadingDeleteIds.includes(
-                                                                    song.id
-                                                                ) ? (
-                                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                                ) : (
-                                                                    <Trash2 className="h-5 w-5" />
-                                                                )}
-                                                            </Button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </AnimatePresence>
-                            </ScrollArea>
+                            <SongQueue
+                                queuedSongs={queuedSongs}
+                                isCreator={isCreator}
+                                handleVote={handleVote}
+                                handlePlayNow={handlePlayNow}
+                                handleSongDelete={handleSongDelete}
+                                loadingVoteIds={loadingVoteIds}
+                                loadingPlayNowIds={loadingPlayNowIds}
+                                loadingDeleteIds={loadingDeleteIds}
+                            />
                         </div>
                         <div className="w-full lg:w-2/5 order-1 lg:order-2">
-                            <h3 className="text-2xl font-semibold text-amber-400 mb-4">
-                                Now Playing
-                            </h3>
+                            <AddSongForm
+                                youtubeLink={youtubeLink}
+                                setYoutubeLink={setYoutubeLink}
+                                addSong={addSong}
+                                isAddingSong={isAddingSong}
+                            />
                             {currentSong ? (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ duration: 0.5 }}
-                                    className="bg-slate-700 rounded-lg p-4 shadow-lg"
-                                >
-                                    <h4 className="text-xl text-amber-300 mb-3">
+                                <div className="bg-slate-700 rounded-lg p-4 shadow-lg">
+                                    <h3 className="text-xl font-semibold text-amber-400 mb-2">
+                                        Now Playing
+                                    </h3>
+                                    <p className="text-slate-300 mb-4">
                                         {currentSong.title}
-                                    </h4>
+                                    </p>
                                     <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
-                                        <YouTube
-                                            videoId={
-                                                currentSong.youtubeLink.split(
-                                                    "v="
-                                                )[1]
-                                            }
-                                            opts={{
-                                                height: "100%",
-                                                width: "100%",
-                                                playerVars: {
-                                                    autoplay: 1,
-                                                },
-                                            }}
-                                            onEnd={onSongEnd}
-                                            ref={playerRef}
+                                        <SyncedPlayer
+                                            currentSong={currentSong}
+                                            isCreator={isCreator}
+                                            client={client}
+                                            roomId={roomId}
+                                            onSongEnd={onSongEnd}
                                         />
                                     </div>
-                                    {isCreator && (
-                                        <div className="flex justify-center space-x-4">
-                                            <Button
-                                                onClick={handlePlayPause}
-                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200"
-                                            >
-                                                {isPlaying ? (
-                                                    <Pause className="mr-2 h-4 w-4" />
-                                                ) : (
-                                                    <Play className="mr-2 h-4 w-4" />
-                                                )}
-                                                {isPlaying ? "Pause" : "Play"}
-                                            </Button>
-                                            <Button
-                                                onClick={handleSkip}
-                                                className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200"
-                                            >
-                                                <SkipForward className="mr-2 h-4 w-4" />
-                                                Skip
-                                            </Button>
-                                        </div>
-                                    )}
-                                </motion.div>
+                                </div>
                             ) : (
                                 <p className="text-slate-400 italic">
                                     No songs in the queue.
                                 </p>
                             )}
-                            <Card className="bg-slate-700 border-slate-600 mt-8 shadow-lg">
-                                <CardHeader>
-                                    <CardTitle className="text-2xl text-amber-400">
-                                        Add a Song
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                                    <Input
-                                        type="text"
-                                        value={youtubeLink}
-                                        onChange={(e) =>
-                                            setYoutubeLink(e.target.value)
-                                        }
-                                        placeholder="Enter YouTube link"
-                                        className="bg-slate-600 border-slate-500 text-slate-100 placeholder-slate-400 flex-grow"
-                                        disabled={isAddingSong}
-                                    />
-                                    <Button
-                                        onClick={addSong}
-                                        disabled={isAddingSong}
-                                        className="bg-amber-400 text-slate-900 hover:bg-amber-500 transition-colors duration-200 w-full sm:w-auto"
-                                    >
-                                        {isAddingSong ? (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Music className="mr-2 h-4 w-4" />
-                                        )}
-                                        {isAddingSong
-                                            ? "Adding..."
-                                            : "Add Song"}
-                                    </Button>
-                                </CardContent>
-                            </Card>
                         </div>
                     </div>
                 </CardContent>

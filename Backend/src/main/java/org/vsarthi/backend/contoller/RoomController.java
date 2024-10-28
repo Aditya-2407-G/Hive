@@ -10,9 +10,11 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.vsarthi.backend.DTO.SongEndedResponse;
+import org.vsarthi.backend.DTO.TimeSync;
 import org.vsarthi.backend.model.*;
 import org.vsarthi.backend.service.CachedVotingService;
-import org.vsarthi.backend.service.LeaveRoomMessage;
+import org.vsarthi.backend.DTO.LeaveRoomMessage;
 import org.vsarthi.backend.service.RoomService;
 
 import java.util.List;
@@ -79,6 +81,11 @@ public class RoomController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+//    @PostMapping("/{roomId}/songs/votes")
+//    public ResponseEntity<List<Song>> getCurrentVotes(@PathVariable Long roomId){
+//        return ResponseEntity.ok(cachedVotingService.getCurrentRoomVotes(roomId));
+//    }
 
     @PostMapping("/{roomId}/generate-shareable-link")
     public ResponseEntity<String> generateShareableLink(@PathVariable Long roomId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -172,6 +179,18 @@ public class RoomController {
         roomService.removeSong(roomId, songId, userPrincipal.getUser());
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", roomService.getSongsInRoom(roomId));
         return ResponseEntity.ok().build();
+    }
+
+    @MessageMapping("/room/{roomId}/timeSync")
+    @SendTo("/topic/room/{roomId}/timeSync")
+    public TimeSync handleTimeSync(@DestinationVariable Long roomId, TimeSync timeSync) {
+        return timeSync;
+    }
+
+    @MessageMapping("/room/{roomId}/requestSync")
+    public void handleSyncRequest(@DestinationVariable Long roomId, SimpMessageHeaderAccessor headerAccessor) {
+        // Forward request to room creator
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/syncRequest", "");
     }
 
 

@@ -12,8 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.vsarthi.backend.model.Users;
-import org.vsarthi.backend.service.CustomOAuth2User;
-import org.vsarthi.backend.service.JwtService;
+import org.vsarthi.backend.DTO.CustomOAuth2User;
 import org.vsarthi.backend.service.UserService;
 
 import java.io.IOException;

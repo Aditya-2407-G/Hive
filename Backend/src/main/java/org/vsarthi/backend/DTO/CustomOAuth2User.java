@@ -1,4 +1,4 @@
-package org.vsarthi.backend.service;
+package org.vsarthi.backend.DTO;
 
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;

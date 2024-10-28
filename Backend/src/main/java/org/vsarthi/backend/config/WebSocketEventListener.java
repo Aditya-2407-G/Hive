@@ -11,18 +11,14 @@ import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.service.RoomService;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class WebSocketEventListener {
 
-    private final SimpMessageSendingOperations messagingTemplate;
     private final RoomService roomService;
-    private final Map<String, Long> sessionRoomMap = new ConcurrentHashMap<>();
 
-    public WebSocketEventListener(SimpMessageSendingOperations messagingTemplate, RoomService roomService) {
-        this.messagingTemplate = messagingTemplate;
+    public WebSocketEventListener( RoomService roomService) {
         this.roomService = roomService;
     }
 
@@ -46,15 +42,4 @@ public class WebSocketEventListener {
     }
 
 
-    public void userJoinedRoom(String sessionId, Long roomId) {
-        sessionRoomMap.put(sessionId, roomId);
-        System.out.println("User joined room: " + roomId + " with session: " + sessionId);
-    }
-
-    public void userLeftRoom(String sessionId) {
-        Long roomId = sessionRoomMap.remove(sessionId);
-        if (roomId != null) {
-            System.out.println("User left room: " + roomId + " with session: " + sessionId);
-        }
-    }
 }

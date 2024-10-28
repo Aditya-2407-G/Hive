@@ -1,4 +1,4 @@
-package org.vsarthi.backend.service;
+package org.vsarthi.backend.DTO;
 
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

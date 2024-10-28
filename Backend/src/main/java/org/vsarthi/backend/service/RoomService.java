@@ -13,9 +13,8 @@ import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Service;
 import org.vsarthi.backend.model.Room;
 import org.vsarthi.backend.model.Song;
-import org.vsarthi.backend.model.SongEndedResponse;
+import org.vsarthi.backend.DTO.SongEndedResponse;
 import org.vsarthi.backend.model.Users;
-import org.vsarthi.backend.model.Vote;
 import org.vsarthi.backend.repository.RoomRepository;
 import org.vsarthi.backend.repository.SongRepository;
 import org.vsarthi.backend.repository.UserRepository;
@@ -137,51 +136,6 @@ public class RoomService {
 
         return result;
     }
-
-    public Song vote(Long songId, Users user) {
-        Song song = songRepository.findById(songId)
-                .orElseThrow(() -> new RuntimeException("Song not found"));
-
-        // Don't allow voting on the currently playing song
-        if (song.isCurrent()) {
-            throw new RuntimeException("Cannot vote on currently playing song");
-        }
-
-        Room room = song.getRoom();
-
-        // Check if user has joined the room
-        boolean userJoined = room.getJoinedUsers().stream()
-                .anyMatch(joinedUser -> joinedUser.getId().equals(user.getId()));
-
-        if (!userJoined) {
-            throw new RuntimeException("User has not joined the room");
-        }
-
-        // Check if user has already voted
-        Optional<Vote> existingVote = voteRepository.findByUserIdAndSongId(user.getId(), songId);
-
-        if (existingVote.isEmpty()) {
-            // Create new vote
-            Vote vote = new Vote();
-            vote.setSong(song);
-            vote.setUser(user);
-            vote.setUpvote(true);
-            voteRepository.save(vote);
-
-            // Increment song's upvote count
-            song.setUpvotes(song.getUpvotes() + 1);
-            songRepository.save(song);
-
-            // Get updated song list with new vote counts
-            List<Song> updatedSongs = getSongsInRoom(room.getId());
-            messagingTemplate.convertAndSend("/topic/room/" + room.getId() + "/songs", updatedSongs);
-        } else {
-            throw new RuntimeException("User has already voted for this song");
-        }
-
-        return song;
-    }
-
 
     @Transactional
     public String generateShareableLink(Long roomId, Users user) {
@@ -403,7 +357,7 @@ public class RoomService {
 
     @Transactional
     public Song playNow(Long roomId, Long songId, Users user) {
-        // Validate room and user permissions
+
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
@@ -411,7 +365,7 @@ public class RoomService {
             throw new RuntimeException("Only the room creator can play songs immediately");
         }
 
-        // Find and validate the song
+
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
 

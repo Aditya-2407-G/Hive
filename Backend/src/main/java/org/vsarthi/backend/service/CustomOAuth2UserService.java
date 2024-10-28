@@ -1,17 +1,15 @@
 package org.vsarthi.backend.service;
 
-import lombok.Getter;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.stereotype.Service;
+import org.vsarthi.backend.DTO.CustomOAuth2User;
 import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
