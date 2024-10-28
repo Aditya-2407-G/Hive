@@ -1,8 +1,0 @@
-name: backend-app
-service:
-  app:
-    build:
-      dockerfile: Dockerfile
-    ports:
-      - port: 8080
-        http: true
