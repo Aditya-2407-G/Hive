@@ -1,26 +1,31 @@
-#FROM maven:3-amazoncorretto-21 AS build
-#COPY . .
-#RUN mvn clean package -DskipTests
-#
-#FROM openjdk:21-jdk-slim
-#COPY --from=build /target/Backend-0.0.1-SNAPSHOT.jar backend.jar
-#EXPOSE 8080
-#ENTRYPOINT ["java", "-jar", "backend.jar"]
-
-
-
 # Build stage
 FROM maven:3.9.4-eclipse-temurin-21 AS build
 
-# Copy the rest of the code
-COPY . .
+# Set working directory
+WORKDIR /app
+
+# Copy pom.xml first for better caching
+COPY pom.xml .
+# Download dependencies
+RUN mvn dependency:go-offline
+
+# Copy the source code
+COPY src ./src
 
 # Run Maven build
 RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM openjdk:21-jdk-slim
-# Copy only the built JAR from the build stage
-COPY --from=build /target/Backend-0.0.1-SNAPSHOT.jar backend.jar
+
+WORKDIR /app
+
+# Copy the jar file with the correct name
+COPY --from=build /app/target/Backend-0.0.1-SNAPSHOT.jar app.jar
+
+# Environment variable for the port (important for Koyeb)
+ENV PORT=8080
 EXPOSE 8080
+
+# Use the correct jar name in ENTRYPOINT
 ENTRYPOINT ["java", "-jar", "app.jar"]
