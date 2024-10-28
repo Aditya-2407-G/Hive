@@ -11,7 +11,6 @@
 
 # Build stage
 FROM maven:3-amazoncorretto-21 AS build
-WORKDIR /app
 # Copy the POM file first to leverage Docker cache for dependencies
 COPY pom.xml .
 # Copy the source code
@@ -21,8 +20,7 @@ RUN mvn clean package -DskipTests
 
 # Runtime stage
 FROM openjdk:21-jdk-slim
-WORKDIR /app
 # Copy only the built JAR from the build stage
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /target/Backend-0.0.1-SNAPSHOT.jar backend.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
