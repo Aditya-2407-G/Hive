@@ -128,9 +128,6 @@ export default function Login() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-950">
 
-<Button 
-            onClick={() => console.log(import.meta.env.VITE_BASE_URL)}
-          >TEST</Button>
             <Card className="w-[400px] bg-slate-900 border-slate-800">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold text-slate-100">
