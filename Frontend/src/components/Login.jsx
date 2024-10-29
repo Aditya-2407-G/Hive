@@ -78,7 +78,7 @@ export default function Login() {
     setIsLoggingIn(true);
     
     try {
-      const response = await fetch(`http://${import.meta.env.VITE_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`https://${import.meta.env.VITE_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export default function Login() {
 
   const handleGoogleLogin = () => {
     setIsGoogleLoggingIn(true);
-    window.location.href = `http://${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google`;
+    window.location.href = `https://${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google`;
   };
 
     return (

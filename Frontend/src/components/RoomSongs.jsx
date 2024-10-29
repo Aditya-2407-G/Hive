@@ -79,7 +79,7 @@ export default function RoomSongs() {
     };
 
     const setupWebSocket = () => {
-        const socket = new SockJS(`http://${import.meta.env.VITE_BASE_URL}/ws`);
+        const socket = new SockJS(`https://${import.meta.env.VITE_BASE_URL}/ws`);
         const stompClient = new Client({
             webSocketFactory: () => socket,
             reconnectDelay: 5000,
