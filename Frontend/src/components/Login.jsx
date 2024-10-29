@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE_URL = 'http://localhost:8080';
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -79,7 +78,7 @@ export default function Login() {
     setIsLoggingIn(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`http://${import.meta.env.VITE_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,11 +122,15 @@ export default function Login() {
 
   const handleGoogleLogin = () => {
     setIsGoogleLoggingIn(true);
-    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+    window.location.href = `http://${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google`;
   };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-950">
+
+<Button 
+            onClick={() => console.log(import.meta.env.VITE_BASE_URL)}
+          >TEST</Button>
             <Card className="w-[400px] bg-slate-900 border-slate-800">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold text-slate-100">

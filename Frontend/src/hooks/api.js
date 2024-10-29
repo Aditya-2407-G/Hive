@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const createAxiosInstance = (navigate, logout, toast) => {
   const instance = axios.create({
-    baseURL: 'http://localhost:8080/api',
+    baseURL: `https://${import.meta.env.VITE_BASE_URL}/api`,
     withCredentials: true,
     headers: {
       'Content-Type': 'application/json',

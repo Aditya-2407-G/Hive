@@ -39,7 +39,7 @@ export default function Register() {
   const onSubmit = async (data) => {
     setIsRegistering(true);
     try {
-      const response = await axios.post('http://localhost:8080/api/auth/register', data);
+      const response = await axios.post(`http://${import.meta.env.VITE_BASE_URL}/api/auth/register`, data);
       
       toast({
         title: "Registration Successful",
@@ -69,7 +69,7 @@ export default function Register() {
 
   const handleGoogleLogin = () => {
     setIsGoogleLoggingIn(true);
-    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+    window.location.href = `http://${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google`;
   };  
 
   return (

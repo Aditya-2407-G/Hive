@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:8080/api/auth/logout', {}, {
+      await axios.post(`http://${import.meta.env.VITE_BASE_URL}/api/auth/logout`, {}, {
         withCredentials: true,
       });
     } catch (error) {
@@ -96,7 +96,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshToken = async () => {
     try {
-      const response = await axios.post('http://localhost:8080/api/auth/refresh', {}, {
+      const response = await axios.post(`http://${import.meta.env.VITE_BASE_URL}/api/auth/refresh`, {}, {
         withCredentials: true,
       });
       

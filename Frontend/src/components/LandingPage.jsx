@@ -21,6 +21,8 @@ export default function LandingPage() {
           <Button  className="bg-amber-400 text-slate-900 hover:bg-amber-300">
             <Link to= '/register'>Sign Up</Link>
           </Button>
+
+
         </nav>
       </header>
 
