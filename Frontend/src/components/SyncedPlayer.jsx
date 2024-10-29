@@ -44,58 +44,28 @@ export default function SyncedPlayer({
     const playerRef = useRef(null);
     const syncIntervalRef = useRef(null);
     const lastTimeUpdateRef = useRef(0);
+    const [initialSyncRequested, setInitialSyncRequested] = useState(false);
+
+
 
     useEffect(() => {
         if (client && client.connected) {
             const syncSubscription = client.subscribe(
                 `/topic/room/${roomId}/timeSync`,
                 (message) => {
-                    const { currentTime, isPlaying: playState } = JSON.parse(
-                        message.body
-                    );
-                    if (playerRef.current && !isCreator) {
-                        const player = playerRef.current.internalPlayer;
-
-                        player.getCurrentTime().then((currentPlayerTime) => {
-                            const timeDiff = Math.abs(
-                                currentPlayerTime - currentTime
-                            );
-                            setDebugInfo((prev) => ({
-                                ...prev,
-                                time: currentTime,
-                                diff: timeDiff.toFixed(2),
-                                lastSync: new Date().toLocaleTimeString(),
-                            }));
-
-                            if (timeDiff > 2) {
-                                player.seekTo(currentTime);
-                                setDebugInfo((prev) => ({
-                                    ...prev,
-                                    status: `synced (${timeDiff.toFixed(
-                                        2
-                                    )}s off)`,
-                                }));
-                            } else if (timeDiff > 0.5) {
-                                // If the difference is between 0.5 and 2 seconds, adjust playback rate
-                                const newRate = timeDiff > 0 ? 1.1 : 0.9;
-                                player.setPlaybackRate(newRate);
-                                setTimeout(
-                                    () => player.setPlaybackRate(1),
-                                    1000
-                                ); // Reset after 1 second
-                            }
-                        });
-
-                        if (playState !== isPlaying) {
-                            playState
-                                ? player.playVideo()
-                                : player.pauseVideo();
+                    if (!initialSyncRequested) {
+                        const { currentTime, isPlaying: playState } = JSON.parse(message.body);
+                        if (playerRef.current && !isCreator) {
+                            const player = playerRef.current.internalPlayer;
+                            player.seekTo(currentTime+3);
+                            player[playState ? 'playVideo' : 'pauseVideo']();
                             setIsPlaying(playState);
+                            setInitialSyncRequested(true);
                         }
                     }
                 }
             );
-
+    
             if (isCreator) {
                 syncIntervalRef.current = setInterval(() => {
                     if (playerRef.current) {
@@ -119,7 +89,7 @@ export default function SyncedPlayer({
                     }
                 }, 1000);
             }
-
+    
             return () => {
                 if (syncIntervalRef.current) {
                     clearInterval(syncIntervalRef.current);
@@ -129,7 +99,7 @@ export default function SyncedPlayer({
                 }
             };
         }
-    }, [client, roomId, isCreator, isPlaying]);
+    }, [client, roomId, isCreator, isPlaying, initialSyncRequested]);
 
     const handleSkip = () => {
         setIsSkipping(true);

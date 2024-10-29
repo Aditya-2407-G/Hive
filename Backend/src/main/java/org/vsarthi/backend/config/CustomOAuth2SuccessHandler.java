@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseCookie;
@@ -84,19 +83,4 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         return String.format("%s/oauth/callback?data=%s", frontendUrl, encodedAuthData);
     }
 
-    // DTO class for auth response
-    @Getter
-    private static class AuthResponseDTO {
-        private final boolean success;
-        private final String message;
-        private final Users user;
-        private final String token;
-
-        public AuthResponseDTO(boolean success, String message, Users user, String token) {
-            this.success = success;
-            this.message = message;
-            this.user = user;
-            this.token = token;
-        }
-    }
 }
