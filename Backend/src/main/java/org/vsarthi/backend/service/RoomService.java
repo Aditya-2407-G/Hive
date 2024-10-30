@@ -455,40 +455,52 @@ public class RoomService {
 
     @Transactional
     public Integer leaveRoom(Long roomId, String sessionId, String email) {
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new RuntimeException("Room not found"));
+        try {
+            Room room = roomRepository.findById(roomId)
+                    .orElseThrow(() -> new RuntimeException("Room not found"));
 
-        Set<String> roomSessions = activeSessionsInRoom.get(roomId);
-        if(roomSessions != null) {
-            roomSessions.remove(sessionId);
-        }
-
-        // Check if the leaving user is the creator
-        if(room.getCreator().getEmail().equals(email)) {
-            // Reset all votes for songs in the room
-            List<Song> roomSongs = songRepository.findByRoomId(roomId);
-            for(Song song : roomSongs) {
-                song.setUpvotes(0);
-                // Clear all existing votes from the vote repository
-                voteRepository.deleteBySong(song);
-                cachedVotingService.clearVoteCache(song.getId());
-
-                // Reset queue position for non-current songs
-                if(!song.isCurrent()) {
-                    song.setQueuePosition(null);
-                }
-
+            Set<String> roomSessions = activeSessionsInRoom.get(roomId);
+            if(roomSessions != null) {
+                roomSessions.remove(sessionId);
             }
-            songRepository.saveAll(roomSongs);
 
-            // Notify all clients that the creator left
-            messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+            // Check if the leaving user is the creator
+            if(room.getCreator().getEmail().equals(email)) {
+                // Reset all votes for songs in the room
+                List<Song> roomSongs = songRepository.findByRoomId(roomId);
+                for(Song song : roomSongs) {
+                    // Clear Redis cache first
+                    cachedVotingService.clearVoteCache(song.getId());
+                    
+                    // Clear DB votes
+                    voteRepository.deleteBySong(song);
+                    
+                    // Reset song properties
+                    song.setUpvotes(0);
+                    if(!song.isCurrent()) {
+                        song.setQueuePosition(null);
+                    }
+                }
+                
+                // Save all changes
+                songRepository.saveAll(roomSongs);
 
-            // Clear active sessions for this room
-            activeSessionsInRoom.remove(roomId);
-            return 0;
+                // Force sync with Redis
+                cachedVotingService.syncVoteCounts();
+
+                // Notify all clients
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", roomSongs);
+
+                // Clear active sessions
+                activeSessionsInRoom.remove(roomId);
+                return 0;
+            }
+
+            return roomSessions != null ? roomSessions.size() : 0;
+        } catch (Exception e) {
+            log.error("Error during room leave: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to leave room: " + e.getMessage());
         }
-
-        return roomSessions != null ? roomSessions.size() : 0;
     }
 }

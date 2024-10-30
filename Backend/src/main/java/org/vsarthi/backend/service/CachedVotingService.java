@@ -109,14 +109,19 @@ public class CachedVotingService {
                         currentCount = Integer.parseInt(currentValue);
                     } catch (NumberFormatException e) {
                         log.error("Invalid vote count in Redis for song {}: {}", request.songId, currentValue);
-                        // Reset the value if it's invalid
                         currentCount = 0;
                     }
                 }
                 
                 // Increment count
                 int newCount = currentCount + 1;
-                redisTemplate.opsForValue().set(voteCountKey, String.valueOf(newCount));
+                
+                try {
+                    redisTemplate.opsForValue().set(voteCountKey, String.valueOf(newCount));
+                } catch (Exception e) {
+                    log.error("Failed to set Redis vote count: {}", e.getMessage());
+                    throw new RuntimeException("Failed to update vote count in Redis");
+                }
 
                 // Update song upvotes to match Redis
                 song.setUpvotes(newCount);
@@ -140,14 +145,14 @@ public class CachedVotingService {
 
                 request.future.complete(song);
             } catch (Exception e) {
-                // If anything fails after adding to set, remove the user from voters set
+                log.error("Error during vote processing: {}", e.getMessage(), e);
                 redisTemplate.opsForSet().remove(votersSetKey, request.user.getId().toString());
-                throw e;
+                throw new RuntimeException("Failed to process vote: " + e.getMessage());
             }
         } catch (Exception e) {
             log.error("Vote processing failed for song {} user {}: {}", 
                 request.songId, request.user.getId(), e.getMessage(), e);
-            request.future.completeExceptionally(e);
+            request.future.completeExceptionally(new RuntimeException(e.getMessage()));
         }
     }
 
