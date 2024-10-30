@@ -11,9 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Service;
+import org.vsarthi.backend.DTO.SongEndedResponse;
 import org.vsarthi.backend.model.Room;
 import org.vsarthi.backend.model.Song;
-import org.vsarthi.backend.DTO.SongEndedResponse;
 import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.repository.RoomRepository;
 import org.vsarthi.backend.repository.SongRepository;
@@ -82,9 +82,14 @@ public class RoomService {
         song.setRoom(room);
         song.setAddedBy(addedBy);
         song.setCurrent(false);
+        
+        Song savedSong = songRepository.save(song);
 
 
-        return songRepository.save(song);
+    // Initialize Redis for the new song
+    cachedVotingService.initializeSongInRedis(savedSong.getId());
+
+    return savedSong;
 
     }
 
@@ -326,15 +331,14 @@ public class RoomService {
             throw new RuntimeException("Song does not belong to the room");
         }
 
+        cachedVotingService.clearVoteCache(songId);
         // Reset ended song
         endedSong.setCurrent(false);
         endedSong.setUpvotes(0);
-        endedSong.setVotes(new ArrayList<>());
         endedSong.setQueuePosition(Integer.MAX_VALUE); // Place at end of queue
         voteRepository.deleteBySong(endedSong);
         songRepository.save(endedSong);
 
-        cachedVotingService.clearVoteCache(songId);
 
         // Find next song with highest votes
         List<Song> remainingSongs = songRepository.findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(roomId);
@@ -382,16 +386,16 @@ public class RoomService {
         currentSong.ifPresent(s -> {
             s.setCurrent(false);
             s.setUpvotes(0);
-            s.setVotes(new ArrayList<>());
             voteRepository.deleteBySong(s);
             songRepository.save(s);
         });
+
+        cachedVotingService.clearVoteCache(songId);
 
         // Set new current song
         song.setCurrent(true);
         song.setQueuePosition(null);
         song.setUpvotes(0);
-        song.setVotes(new ArrayList<>());
         voteRepository.deleteBySong(song);
         Song savedSong = songRepository.save(song);
 
@@ -465,7 +469,6 @@ public class RoomService {
             List<Song> roomSongs = songRepository.findByRoomId(roomId);
             for(Song song : roomSongs) {
                 song.setUpvotes(0);
-                song.setVotes(new ArrayList<>());
                 // Clear all existing votes from the vote repository
                 voteRepository.deleteBySong(song);
                 cachedVotingService.clearVoteCache(song.getId());
