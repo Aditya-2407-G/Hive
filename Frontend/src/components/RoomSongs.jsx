@@ -365,11 +365,18 @@ export default function RoomSongs() {
                     destination: `/app/room/${roomId}/leave`,
                     body: JSON.stringify({ email: auth.email }),
                 });
+                
+                // Unsubscribe from all room-related topics
+                if (roomSubscriptions) {
+                    Object.values(roomSubscriptions).forEach(sub => sub.unsubscribe());
+                }
+
+                // Disconnect STOMP client
+                await client.deactivate();
             }
 
-            if (!isCreator) {
-                navigate("/home");
-            }
+            // Always navigate home after cleanup
+            navigate("/home");
         } catch (error) {
             console.error("Error leaving room:", error);
             toast({
@@ -377,6 +384,8 @@ export default function RoomSongs() {
                 description: "Failed to leave room. Please try again.",
                 variant: "destructive",
             });
+            // Still navigate home in case of error
+            navigate("/home");
         }
     };
 
@@ -398,6 +407,31 @@ export default function RoomSongs() {
             });
         }
     };
+
+    // Add this useEffect to handle creator left message
+    useEffect(() => {
+        if (client && client.connected) {
+            const statusSubscription = client.subscribe(
+                `/topic/room/${roomId}/status`,
+                (message) => {
+                    const status = message.body;
+                    if (status === "CREATOR_LEFT") {
+                        toast({
+                            title: "Room Closed",
+                            description: "The room creator has left. You will be redirected to home.",
+                        });
+                        navigate("/home");
+                    }
+                }
+            );
+
+            return () => {
+                if (statusSubscription) {
+                    statusSubscription.unsubscribe();
+                }
+            };
+        }
+    }, [client, roomId, navigate, toast]);
 
     if (loading) {
         return (

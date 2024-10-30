@@ -124,13 +124,24 @@ public class RoomController {
 
     @MessageMapping("/room/{roomId}/leave")
     @SendTo("/topic/room/{roomId}/activeUsers")
-    public Integer leaveRoom(
+    public Integer handleRoomLeave(
             @DestinationVariable Long roomId,
             @Payload LeaveRoomMessage message,
             SimpMessageHeaderAccessor headerAccessor
     ) {
-        String sessionId = headerAccessor.getSessionId();
-        return roomService.leaveRoom(roomId, sessionId, message.getEmail());
+        try {
+            String sessionId = headerAccessor.getSessionId();
+            Integer remainingUsers = roomService.leaveRoom(roomId, sessionId, message.getEmail());
+
+            // If creator left (remainingUsers = 0), notify all clients
+            if (remainingUsers == 0) {
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+            }
+
+            return remainingUsers;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to leave room: " + e.getMessage());
+        }
     }
 
     @PostMapping("/{roomId}/close")
