@@ -499,7 +499,6 @@ public class RoomService {
 
             return roomSessions != null ? roomSessions.size() : 0;
         } catch (Exception e) {
-            log.error("Error during room leave: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to leave room: " + e.getMessage());
         }
     }
