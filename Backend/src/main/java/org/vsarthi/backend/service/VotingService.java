@@ -1,6 +1,7 @@
 package org.vsarthi.backend.service;
 
-import lombok.AllArgsConstructor;
+import java.util.List;
+
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.vsarthi.backend.model.Room;
@@ -10,7 +11,7 @@ import org.vsarthi.backend.model.Vote;
 import org.vsarthi.backend.repository.SongRepository;
 import org.vsarthi.backend.repository.VoteRepository;
 
-import java.util.List;
+import lombok.AllArgsConstructor;
 
 @Service
 @AllArgsConstructor
@@ -47,8 +48,9 @@ public class VotingService {
         vote.setUser(user);
         voteRepository.save(vote);
 
-        // update the song table
-        song.setUpvotes(song.getUpvotes()  + 1);
+        // update the song table using the vote table count
+        song.setVotes(voteRepository.countBySongId(song.getId()));
+
 
         songrepository.save(song);
 

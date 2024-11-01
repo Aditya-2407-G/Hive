@@ -75,4 +75,7 @@ public class Song {
         return id.hashCode();
     }
 
+    public void setVotes(long votes) {
+        this.upvotes = (int) votes;
+    }
 }
