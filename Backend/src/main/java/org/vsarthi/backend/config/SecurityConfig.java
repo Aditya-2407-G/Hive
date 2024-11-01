@@ -57,7 +57,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request -> request
-                        .requestMatchers("/api/auth/register", "/api/auth/login","/api/auth/refresh","/api/auth/logout", "/oauth2/**", "/login", "/ws/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login","/api/auth/refresh","/api/auth/logout", "/oauth2/**", "/login", "/ws/**", "/login/oauth2/code/google").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
@@ -78,7 +78,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-two-lake.vercel.app"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-two-lake.vercel.app", "https://literary-wombat-aditya-2407-g-0d38ac56.koyeb.app"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
