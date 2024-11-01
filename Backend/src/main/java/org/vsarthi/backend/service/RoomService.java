@@ -33,17 +33,17 @@ public class RoomService {
     private final YouTubeService youTubeService;
     private final Map<Long, Set<String>> activeSessionsInRoom = new ConcurrentHashMap<>();
     private final SimpMessageSendingOperations messagingTemplate;
-    private final CachedVotingService cachedVotingService;
+    private final VotingService votingService;
 
     @Autowired
-    public RoomService(RoomRepository roomRepository, SongRepository songRepository, VoteRepository voteRepository, UserRepository userRepository, YouTubeService youTubeService, SimpMessageSendingOperations messagingTemplate, CachedVotingService cachedVotingService) {
+    public RoomService(RoomRepository roomRepository, SongRepository songRepository, VoteRepository voteRepository, UserRepository userRepository, YouTubeService youTubeService, SimpMessageSendingOperations messagingTemplate, VotingService votingService) {
         this.roomRepository = roomRepository;
         this.songRepository = songRepository;
         this.voteRepository = voteRepository;
         this.userRepository = userRepository;
         this.youTubeService = youTubeService;
         this.messagingTemplate = messagingTemplate;
-        this.cachedVotingService = cachedVotingService;
+        this.votingService = votingService;
     }
 
     @Transactional
@@ -84,10 +84,6 @@ public class RoomService {
         song.setCurrent(false);
         
         Song savedSong = songRepository.save(song);
-
-
-    // Initialize Redis for the new song
-    cachedVotingService.initializeSongInRedis(savedSong.getId());
 
     return savedSong;
 
@@ -331,7 +327,8 @@ public class RoomService {
             throw new RuntimeException("Song does not belong to the room");
         }
 
-        cachedVotingService.clearVoteCache(songId);
+        votingService.removeVotes(songId);
+
         // Reset ended song
         endedSong.setCurrent(false);
         endedSong.setUpvotes(0);
@@ -390,7 +387,7 @@ public class RoomService {
             songRepository.save(s);
         });
 
-        cachedVotingService.clearVoteCache(songId);
+        votingService.removeVotes(songId);
 
         // Set new current song
         song.setCurrent(true);
@@ -435,7 +432,7 @@ public class RoomService {
 
             // Remove the song from the room's song set
             room.getSongs().remove(song);
-            cachedVotingService.clearVoteCache(songId);
+            votingService.removeVotes(songId);
             // Delete the song
             songRepository.delete(song);
 
@@ -469,9 +466,8 @@ public class RoomService {
                 // Reset all votes for songs in the room
                 List<Song> roomSongs = songRepository.findByRoomId(roomId);
                 for(Song song : roomSongs) {
-                    // Clear Redis cache first
-                    cachedVotingService.clearVoteCache(song.getId());
-                    
+                    // Clear votes
+                    votingService.removeVotes(song.getId());
                     // Clear DB votes
                     voteRepository.deleteBySong(song);
                     
@@ -484,9 +480,6 @@ public class RoomService {
                 
                 // Save all changes
                 songRepository.saveAll(roomSongs);
-
-                // Force sync with Redis
-                cachedVotingService.syncVoteCounts();
 
                 // Notify all clients
                 messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");

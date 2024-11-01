@@ -25,8 +25,8 @@ import org.vsarthi.backend.DTO.TimeSync;
 import org.vsarthi.backend.model.Room;
 import org.vsarthi.backend.model.Song;
 import org.vsarthi.backend.model.UserPrincipal;
-import org.vsarthi.backend.service.CachedVotingService;
 import org.vsarthi.backend.service.RoomService;
+import org.vsarthi.backend.service.VotingService;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -34,13 +34,13 @@ public class RoomController {
 
     private final RoomService roomService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final CachedVotingService cachedVotingService;
+    private final VotingService votingService;
 
     @Autowired
-    public RoomController(RoomService roomService , SimpMessagingTemplate messagingTemplate, CachedVotingService cachedVotingService) {
+    public RoomController(RoomService roomService , SimpMessagingTemplate messagingTemplate, VotingService votingService) {
         this.roomService = roomService;
         this.messagingTemplate = messagingTemplate;
-        this.cachedVotingService = cachedVotingService;
+        this.votingService = votingService;
     }
 
     @PostMapping
@@ -84,7 +84,7 @@ public class RoomController {
     @PostMapping("/songs/{songId}/vote")
     public ResponseEntity<?> voteSong(@PathVariable Long songId, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            Song updatedSong = cachedVotingService.vote(songId, userPrincipal.getUser());
+            Song updatedSong = votingService.vote(songId, userPrincipal.getUser());
             return ResponseEntity.ok(updatedSong);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -172,7 +172,7 @@ public class RoomController {
     public ResponseEntity<?> handleSongEnded(@PathVariable Long roomId, @PathVariable Long songId) {
         try {
             SongEndedResponse response = roomService.handleSongEnded(roomId, songId);
-            cachedVotingService.clearVoteCache(songId); // Clear vote cache when song ends
+            votingService.removeVotes(songId); // Clear vote cache when song ends
             messagingTemplate.convertAndSend("/topic/room/" + roomId + "/song-ended", response);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
