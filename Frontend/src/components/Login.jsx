@@ -78,7 +78,7 @@ export default function Login() {
     setIsLoggingIn(true);
     
     try {
-      const response = await fetch(`https://${import.meta.env.VITE_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
