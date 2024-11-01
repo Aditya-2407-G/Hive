@@ -78,7 +78,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-6eaus47la-aditya-2407-gs-projects.vercel.app"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-two-lake.vercel.app"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

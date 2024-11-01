@@ -23,7 +23,7 @@ public class    WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").setAllowedOriginPatterns("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-6eaus47la-aditya-2407-gs-projects.vercel.app").withSockJS();
+        registry.addEndpoint("/ws").setAllowedOriginPatterns("http://localhost:5173", "http://192.168.29.234:5173", "https://hive-two-lake.vercel.app").withSockJS();
     }
 
 
