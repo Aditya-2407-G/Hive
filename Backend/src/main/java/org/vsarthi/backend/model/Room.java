@@ -93,4 +93,12 @@ public class Room {
         }
         song.setCurrent(true);
     }
+
+    public void setCreatorJoined(boolean b) {
+        if (b) {
+            this.joinedUsers.add(creator);
+        } else {
+            this.joinedUsers.remove(creator);
+        }
+    }
 }

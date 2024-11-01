@@ -33,6 +33,8 @@ export default function RoomSongs() {
     const [loadingVoteIds, setLoadingVoteIds] = useState([]);
     const [loadingPlayNowIds, setLoadingPlayNowIds] = useState([]);
     const [loadingDeleteIds, setLoadingDeleteIds] = useState([]);
+    const [creatorJoined, setCreatorJoined] = useState(false);
+    const [roomSubscriptions, setRoomSubscriptions] = useState({});
 
     const { roomName, shareableLink } = location.state || {};
 
@@ -42,15 +44,24 @@ export default function RoomSongs() {
         setupWebSocket();
 
         return () => {
-            if (client && client.connected) {
-                client.publish({
-                    destination: `/app/room/${roomId}/leave`,
-                    body: JSON.stringify({ email: auth.email }),
-                });
-            }
-            if (client) client.deactivate();
+            cleanupRoom();
         };
     }, [roomId]);
+
+    const cleanupRoom = async () => {
+        if (client && client.connected) {
+            await client.publish({
+                destination: `/app/room/${roomId}/leave`,
+                body: JSON.stringify({ email: auth.email }),
+            });
+            
+            // Unsubscribe from all room-related topics
+            Object.values(roomSubscriptions).forEach(sub => sub.unsubscribe());
+
+            // Disconnect STOMP client
+            await client.deactivate();
+        }
+    };
 
     const fetchRoomData = async () => {
         try {
@@ -95,42 +106,38 @@ export default function RoomSongs() {
         setClient(stompClient);
     };
 
+    
     const setupSubscriptions = (stompClient) => {
-        stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
-            const updatedSongs = JSON.parse(message.body);
-            updateSongsList(updatedSongs);
-        });
-
-        stompClient.subscribe(`/topic/room/${roomId}/status`, (message) => {
-            if (message.body === "CLOSED" || message.body === "CREATOR_LEFT") {
-                handleRoomClosure(message.body);
-            }
-        });
-
-        stompClient.subscribe(
-            `/topic/room/${roomId}/vote-update`,
-            (message) => {
+        const subs = {
+            songs: stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
+                const updatedSongs = JSON.parse(message.body);
+                updateSongsList(updatedSongs);
+            }),
+            status: stompClient.subscribe(`/topic/room/${roomId}/status`, (message) => {
+                if (message.body === "CLOSED") {
+                    handleRoomClosure();
+                } else if (message.body === "CREATOR_JOINED") {
+                    setCreatorJoined(true);
+                }
+            }),
+            voteUpdate: stompClient.subscribe(`/topic/room/${roomId}/vote-update`, (message) => {
                 const voteUpdate = JSON.parse(message.body);
                 handleVoteUpdate(voteUpdate);
-            }
-        );
-
-        stompClient.subscribe(`/topic/room/${roomId}/votes`, (message) => {
-            const updatedSong = JSON.parse(message.body);
-            updateSongVotes(updatedSong);
-        });
-
-        stompClient.subscribe(`/topic/room/${roomId}/song-ended`, (message) => {
-            const { endedSongId, newSongOrder } = JSON.parse(message.body);
-            handleSongEnded(endedSongId, newSongOrder);
-        });
-
-        stompClient.subscribe(
-            `/topic/room/${roomId}/activeUsers`,
-            (message) => {
+            }),
+            votes: stompClient.subscribe(`/topic/room/${roomId}/votes`, (message) => {
+                const updatedSong = JSON.parse(message.body);
+                updateSongVotes(updatedSong);
+            }),
+            songEnded: stompClient.subscribe(`/topic/room/${roomId}/song-ended`, (message) => {
+                const { endedSongId, newSongOrder } = JSON.parse(message.body);
+                handleSongEnded(endedSongId, newSongOrder);
+            }),
+            activeUsers: stompClient.subscribe(`/topic/room/${roomId}/activeUsers`, (message) => {
                 setActiveUsers(parseInt(message.body));
-            }
-        );
+            }),
+        };
+
+        setRoomSubscriptions(subs);
 
         stompClient.publish({
             destination: `/app/room/${roomId}/join`,
@@ -360,22 +367,7 @@ export default function RoomSongs() {
 
     const handleLeaveRoom = async () => {
         try {
-            if (client && client.connected) {
-                client.publish({
-                    destination: `/app/room/${roomId}/leave`,
-                    body: JSON.stringify({ email: auth.email }),
-                });
-                
-                // Unsubscribe from all room-related topics
-                if (roomSubscriptions) {
-                    Object.values(roomSubscriptions).forEach(sub => sub.unsubscribe());
-                }
-
-                // Disconnect STOMP client
-                await client.deactivate();
-            }
-
-            // Always navigate home after cleanup
+            await cleanupRoom();
             navigate("/home");
         } catch (error) {
             console.error("Error leaving room:", error);
@@ -439,6 +431,16 @@ export default function RoomSongs() {
                 <Loader className="w-12 h-12 text-amber-400 animate-spin" />
                 <p className="ml-4 text-xl text-amber-400 animate-pulse">
                     Hang on tight, while we let you in!
+                </p>
+            </div>
+        );
+    }
+
+    if (!creatorJoined && !isCreator) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-slate-950">
+                <p className="text-xl text-amber-400">
+                    Waiting for the room creator to join...
                 </p>
             </div>
         );
