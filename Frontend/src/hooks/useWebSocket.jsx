@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Client } from '@stomp/stompjs';
 
-const SOCKET_URL = `ws://${import.meta.env.VITE_BASE_URL}/ws`;
+const SOCKET_URL = `${import.meta.env.VITE_BASE_WS_URL}/ws`;
 
 export const useWebSocket = (roomId, token) => {
   const [client, setClient] = useState(null);
