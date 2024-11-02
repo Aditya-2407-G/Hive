@@ -36,6 +36,7 @@ export default function RoomSongs() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     const subscriptionsRef = useRef({});
 =======
 =======
@@ -44,6 +45,10 @@ export default function RoomSongs() {
     const [roomSubscriptions, setRoomSubscriptions] = useState({});
 =======
 >>>>>>> parent of 221b859 (creator room logic)
+=======
+    const [creatorJoined, setCreatorJoined] = useState(false);
+    const [roomSubscriptions, setRoomSubscriptions] = useState({});
+>>>>>>> 221b85998bb21208460c0ca0a81c5b4d486595cd
 
 >>>>>>> 221b859 (creator room logic)
     const { roomName, shareableLink } = location.state || {};
@@ -54,6 +59,7 @@ export default function RoomSongs() {
         setupWebSocket();
 
         return () => {
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -125,6 +131,27 @@ export default function RoomSongs() {
     }, [roomId]);
 
 >>>>>>> parent of 221b859 (creator room logic)
+=======
+            cleanupRoom();
+        };
+    }, [roomId]);
+
+    const cleanupRoom = async () => {
+        if (client && client.connected) {
+            await client.publish({
+                destination: `/app/room/${roomId}/leave`,
+                body: JSON.stringify({ email: auth.email }),
+            });
+            
+            // Unsubscribe from all room-related topics
+            Object.values(roomSubscriptions).forEach(sub => sub.unsubscribe());
+
+            // Disconnect STOMP client
+            await client.deactivate();
+        }
+    };
+
+>>>>>>> 221b85998bb21208460c0ca0a81c5b4d486595cd
     const fetchRoomData = async () => {
         try {
             setLoading(true);
@@ -168,7 +195,9 @@ export default function RoomSongs() {
         setClient(stompClient);
     };
 
+    
     const setupSubscriptions = (stompClient) => {
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -210,6 +239,8 @@ export default function RoomSongs() {
             }
         );
 =======
+=======
+>>>>>>> 221b85998bb21208460c0ca0a81c5b4d486595cd
         const subs = {
             songs: stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
                 const updatedSongs = JSON.parse(message.body);
@@ -223,6 +254,7 @@ export default function RoomSongs() {
                 }
             }),
             voteUpdate: stompClient.subscribe(`/topic/room/${roomId}/vote-update`, (message) => {
+<<<<<<< HEAD
 =======
         stompClient.subscribe(`/topic/room/${roomId}/songs`, (message) => {
             const updatedSongs = JSON.parse(message.body);
@@ -265,6 +297,25 @@ export default function RoomSongs() {
             }
         );
 >>>>>>> parent of 221b859 (creator room logic)
+=======
+                const voteUpdate = JSON.parse(message.body);
+                handleVoteUpdate(voteUpdate);
+            }),
+            votes: stompClient.subscribe(`/topic/room/${roomId}/votes`, (message) => {
+                const updatedSong = JSON.parse(message.body);
+                updateSongVotes(updatedSong);
+            }),
+            songEnded: stompClient.subscribe(`/topic/room/${roomId}/song-ended`, (message) => {
+                const { endedSongId, newSongOrder } = JSON.parse(message.body);
+                handleSongEnded(endedSongId, newSongOrder);
+            }),
+            activeUsers: stompClient.subscribe(`/topic/room/${roomId}/activeUsers`, (message) => {
+                setActiveUsers(parseInt(message.body));
+            }),
+        };
+
+        setRoomSubscriptions(subs);
+>>>>>>> 221b85998bb21208460c0ca0a81c5b4d486595cd
 
         // Song ended subscription
         subscriptionsRef.current.songEnded = stompClient.subscribe(
@@ -547,6 +598,7 @@ export default function RoomSongs() {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             cleanupWebSocket();
 =======
             await cleanupRoom();
@@ -572,6 +624,9 @@ export default function RoomSongs() {
 
             // Always navigate home after cleanup
 >>>>>>> parent of 221b859 (creator room logic)
+=======
+            await cleanupRoom();
+>>>>>>> 221b85998bb21208460c0ca0a81c5b4d486595cd
             navigate("/home");
         } catch (error) {
             console.error("Error leaving room:", error);
@@ -635,6 +690,16 @@ export default function RoomSongs() {
                 <Loader className="w-12 h-12 text-amber-400 animate-spin" />
                 <p className="ml-4 text-xl text-amber-400 animate-pulse">
                     Hang on tight, while we let you in!
+                </p>
+            </div>
+        );
+    }
+
+    if (!creatorJoined && !isCreator) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-slate-950">
+                <p className="text-xl text-amber-400">
+                    Waiting for the room creator to join...
                 </p>
             </div>
         );

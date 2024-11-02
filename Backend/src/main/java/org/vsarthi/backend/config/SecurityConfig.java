@@ -88,13 +88,6 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setPasswordEncoder(passwordEncoder());
-        provider.setUserDetailsService(userDetailsService);
-        return provider;
-    }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
