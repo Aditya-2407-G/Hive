@@ -1,34 +1,40 @@
-import React from 'react';
-import { CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Music, Users } from "lucide-react";
+import React from 'react'
+import { CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Music, Users, LogOut, Trash2 } from "lucide-react"
 
 export default function RoomHeader({
-  roomName,
-  roomId,
-  activeUsers,
-  isCreator,
-  onLeaveRoom,
-  onDeleteRoom
+  roomName = "Music Room",
+  roomId = "1234",
+  activeUsers = 0,
+  isCreator = false,
+  onLeaveRoom = () => {},
+  onDeleteRoom = () => {}
 }) {
   return (
-    <CardHeader className="border-b border-slate-700">
-      <CardTitle className="text-3xl font-bold text-amber-400 flex flex-col sm:flex-row items-center justify-between">
-        <div className="flex items-center mb-4 sm:mb-0">
-          <Music className="mr-2" /> {roomName || `Room ${roomId}`}
+    <CardHeader className="border-b border-slate-700 p-4">
+      <div className="flex justify-between items-center">
+        <div className="space-y-1">
+          <CardTitle className="flex items-center text-2xl font-bold text-amber-400">
+            <Music className="w-7 h-7 mr-2 flex-shrink-0" />
+            <span className="truncate max-w-[100x] sm:max-w-none text-3xl">
+              {roomName || `Room ${roomId}`}
+            </span>
+          </CardTitle>
         </div>
-        <div className="flex items-center space-x-4">
-          <Badge variant="secondary" className="text-sm bg-slate-700 text-amber-400">
+          <Badge variant="secondary" className="bg-slate-700 text-amber-400">
             <Users className="w-4 h-4 mr-1" />
-            {activeUsers} active
+            <span>{activeUsers} active</span>
           </Badge>
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button
             onClick={onLeaveRoom}
             variant="destructive"
             className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
           >
-            Leave Room
+            <LogOut className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Leave</span>
           </Button>
           {isCreator && (
             <Button
@@ -36,11 +42,12 @@ export default function RoomHeader({
               variant="destructive"
               className="bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
             >
-              Delete Room
+              <Trash2 className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Delete</span>
             </Button>
           )}
         </div>
-      </CardTitle>
+      </div>
     </CardHeader>
-  );
+  )
 }

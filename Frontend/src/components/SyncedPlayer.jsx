@@ -47,7 +47,7 @@ export default function SyncedPlayer({
           if (playerRef.current) {
             const player = playerRef.current.internalPlayer
             player.getCurrentTime().then((currentTime) => {
-              if (currentTime - lastSyncTimeRef.current >= 60 || Math.abs(currentTime - lastSyncTimeRef.current) > 1.5) {
+              if (currentTime - lastSyncTimeRef.current >= 60) {
                 client.publish({
                   destination: `/app/room/${roomId}/timeSync`,
                   body: JSON.stringify({

@@ -4,7 +4,7 @@ import SockJS from "sockjs-client";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader, Share2 } from "lucide-react";
+import { Loader, Share2, Music, Users } from "lucide-react"
 import { useApi } from "@/hooks/api";
 import { useAuth } from "@/context/AuthProvider";
 import { useToast } from "@/hooks/use-toast";
@@ -469,75 +469,79 @@ export default function RoomSongs() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 p-4 md:p-8">
-            <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
-                <RoomHeader
-                    roomName={roomName}
-                    roomId={roomId}
-                    activeUsers={activeUsers}
+        <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 p-4">
+          <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
+            <RoomHeader
+              roomName={roomName}
+              roomId={roomId}
+              activeUsers={activeUsers}
+              isCreator={isCreator}
+              onLeaveRoom={handleLeaveRoom}
+              onDeleteRoom={handleDeleteRoom}
+            />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="w-full lg:w-3/5 order-2 lg:order-1">
+                  <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+                    <h3 className="text-2xl font-semibold text-amber-400 mb-2 sm:mb-0">
+                      Up Next
+                    </h3>
+                    <Button
+                      onClick={generateShareableLink}
+                      className="w-full sm:w-auto bg-amber-400 hover:bg-amber-500 text-slate-900 font-semibold transition-colors duration-200"
+                    >
+                      <Share2 className="mr-2 h-4 w-4" /> Share Room
+                    </Button>
+                  </div>
+                  <SongQueue
+                    queuedSongs={queuedSongs}
                     isCreator={isCreator}
-                    onLeaveRoom={handleLeaveRoom}
-                    onDeleteRoom={handleDeleteRoom}
-                />
-                <CardContent className="p-6">
-                    <div className="flex flex-col lg:flex-row gap-8">
-                        <div className="w-full lg:w-3/5 order-2 lg:order-1">
-                            <div className="flex flex-col sm:flex-row justify-between mb-4">
-                                <h3 className="text-2xl font-semibold text-amber-400 mb-2 sm:mb-0">
-                                    Up Next
-                                </h3>
-                                <Button
-                                    onClick={generateShareableLink}
-                                    className="w-full sm:w-auto bg-amber-400 hover:bg-amber-500 text-slate-900 font-semibold transition-colors duration-200"
-                                >
-                                    <Share2 className="mr-2 h-4 w-4" /> Share
-                                </Button>
-                            </div>
-                            <SongQueue
-                                queuedSongs={queuedSongs}
-                                isCreator={isCreator}
-                                handleVote={handleVote}
-                                handlePlayNow={handlePlayNow}
-                                handleSongDelete={handleSongDelete}
-                                loadingVoteIds={loadingVoteIds}
-                                loadingPlayNowIds={loadingPlayNowIds}
-                                loadingDeleteIds={loadingDeleteIds}
-                            />
-                        </div>
-                        <div className="w-full lg:w-2/5 order-1 lg:order-2">
-                            <AddSongForm
-                                youtubeLink={youtubeLink}
-                                setYoutubeLink={setYoutubeLink}
-                                addSong={addSong}
-                                isAddingSong={isAddingSong}
-                            />
-                            {currentSong ? (
-                                <div className="bg-slate-700 rounded-lg p-4 shadow-lg">
-                                    <h3 className="text-xl font-semibold text-amber-400 mb-2">
-                                        Now Playing
-                                    </h3>
-                                    <p className="text-slate-300 mb-4">
-                                        {currentSong.title}
-                                    </p>
-                                    <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
-                                        <SyncedPlayer
-                                            currentSong={currentSong}
-                                            isCreator={isCreator}
-                                            client={client}
-                                            roomId={roomId}
-                                            onSongEnd={onSongEnd}
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
-                                <p className="text-slate-400 italic">
-                                    No songs in the queue.
-                                </p>
-                            )}
-                        </div>
+                    handleVote={handleVote}
+                    handlePlayNow={handlePlayNow}
+                    handleSongDelete={handleSongDelete}
+                    loadingVoteIds={loadingVoteIds}
+                    loadingPlayNowIds={loadingPlayNowIds}
+                    loadingDeleteIds={loadingDeleteIds}
+                  />
+                </div>
+                <div className="w-full lg:w-2/5 order-1 lg:order-2">
+                  <AddSongForm
+                    youtubeLink={youtubeLink}
+                    setYoutubeLink={setYoutubeLink}
+                    addSong={addSong}
+                    isAddingSong={isAddingSong}
+                  />
+                  {currentSong ? (
+                    <div className="bg-slate-700 rounded-lg p-4 shadow-lg mt-4">
+                      <h3 className="text-xl font-semibold text-amber-400 mb-2">
+                        Now Playing
+                      </h3>
+                      <p className="text-slate-300 mb-4 line-clamp-2">
+                        {currentSong.title}
+                      </p>
+                      <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
+                        <SyncedPlayer
+                          currentSong={currentSong}
+                          isCreator={isCreator}
+                          client={client}
+                          roomId={roomId}
+                          onSongEnd={onSongEnd}
+                        />
+                      </div>
+  
                     </div>
-                </CardContent>
-            </Card>
+                  ) : (
+                    <div className="bg-slate-700 rounded-lg p-4 shadow-lg mt-4 text-center">
+                      <Music className="w-12 h-12 text-amber-400 mx-auto mb-2" />
+                      <p className="text-slate-400 italic">
+                        No songs in the queue. Add a song to get started!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-    );
+      )
 }

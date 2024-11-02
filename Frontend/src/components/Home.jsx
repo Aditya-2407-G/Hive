@@ -172,7 +172,7 @@ export default function Home() {
                 className="max-w-6xl mx-auto"
             >
                 <header className="flex justify-between items-center mb-12">
-                    <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-amber-400">
+                    <h1 className="text-4xl pb-2 font-bold text-transparent bg-clip-text bg-amber-400">
                         Welcome to Hive, {auth.user}!
                     </h1>
                     <Button
