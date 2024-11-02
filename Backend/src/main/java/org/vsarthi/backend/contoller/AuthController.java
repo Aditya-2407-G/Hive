@@ -42,6 +42,8 @@ public class AuthController {
         ResponseCookie jwtCookie = ResponseCookie.from("accessToken", tokens.accessToken)
                 .httpOnly(true)
                 .secure(true) // Enable in production
+                .sameSite("Strict")
+                .domain("hive-two-lake.vercel.app")
                 .path("/")
                 .maxAge(3600) // 1 hour
                 .build();
@@ -51,6 +53,8 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true) // Enable in production
                 .path("/") // not the best practice, but for simplicity
+                .sameSite("Strict")
+                .domain("hive-two-lake.vercel.app")
                 .maxAge(604800) // 1 week
                 .build();
 
@@ -80,6 +84,8 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
+                .sameSite("Strict")
+                .domain("hive-two-lake.vercel.app")
                 .maxAge(0)
                 .build();
 
@@ -87,6 +93,8 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true)
                 .path("/")
+                .sameSite("Strict")
+                .domain("hive-two-lake.vercel.app")
                 .maxAge(0)
                 .build();
 
@@ -109,6 +117,8 @@ public class AuthController {
                     .httpOnly(true)
                     .secure(true)
                     .path("/")
+                    .sameSite("Strict")
+                    .domain("hive-two-lake.vercel.app")
                     .maxAge(3600)
                     .build();
 
@@ -116,6 +126,8 @@ public class AuthController {
                     .httpOnly(true)
                     .secure(true)
                     .path("/")
+                    .sameSite("Strict")
+                    .domain("hive-two-lake.vercel.app")
                     .maxAge(604800)
                     .build();
 
