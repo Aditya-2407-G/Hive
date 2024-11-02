@@ -117,7 +117,7 @@ public class RoomController {
 
     @MessageMapping("/room/{roomId}/join")
     @SendTo("/topic/room/{roomId}/activeUsers")
-    public Integer joinRoom(@DestinationVariable Long roomId, SimpMessageHeaderAccessor headerAccessor) {
+    Integer joinRoom(@DestinationVariable Long roomId, SimpMessageHeaderAccessor headerAccessor) {
         String sessionId = headerAccessor.getSessionId();
         return roomService.addActiveUser(roomId, sessionId);
     }
@@ -133,9 +133,10 @@ public class RoomController {
             String sessionId = headerAccessor.getSessionId();
             Integer remainingUsers = roomService.leaveRoom(roomId, sessionId, message.getEmail());
 
-            // If creator left (remainingUsers = 0), notify all clients
+            // If creator left (remainingUsers = 0), notify all users in the room
+
             if (remainingUsers == 0) {
-                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/creatorLeft", "");
             }
 
             return remainingUsers;

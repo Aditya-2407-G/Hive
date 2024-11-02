@@ -22,4 +22,6 @@ public interface SongRepository extends JpaRepository<Song, Long> {
     List<Song> findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(@Param("roomId") Long roomId);
 
     List<Song> findByRoomId(Long roomId);
+
+    List<Song> findAllByRoomIdAndIsCurrent(Long roomId, boolean b);
 }

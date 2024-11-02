@@ -50,8 +50,6 @@ public class VotingService {
 
         // update the song table using the vote table count
         song.setVotes(voteRepository.countBySongId(song.getId()));
-
-
         songrepository.save(song);
 
         List<Song> songs = songrepository.findByRoomId(room.getId());

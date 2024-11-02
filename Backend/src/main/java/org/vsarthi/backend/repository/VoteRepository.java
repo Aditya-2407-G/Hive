@@ -14,7 +14,6 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
     void deleteBySong(Song endedSong);
 
     boolean existsBySongIdAndUserId(Long songId, Long userId);
-    List<Vote> findBySongId(Long songId);
     long countBySongId(Long songId);
 
 }

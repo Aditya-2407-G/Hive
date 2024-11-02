@@ -67,13 +67,19 @@ public class RoomService {
             throw new RuntimeException("User has not joined the room and cannot add songs");
         }
 
+        String videoId = youTubeService.extractVideoId(youtubeLink);
+
+        // Check if the video is available and embeddable
+        if (!youTubeService.isVideoAvailable(videoId)) {
+            throw new RuntimeException("The video is not available or not embeddable");
+        }
+
         // Check if a song with the same YouTube link already exists in this room
         Optional<Song> existingSong = songRepository.findByYoutubeLinkAndRoomId(youtubeLink, roomId);
         if (existingSong.isPresent()) {
             throw new RuntimeException("Song with the same YouTube link already exists in this room");
         }
 
-        String videoId = youTubeService.extractVideoId(youtubeLink);
         String title = youTubeService.getVideoTitle(videoId);
 
         Song song = new Song();
@@ -186,12 +192,13 @@ public class RoomService {
         }
 
         // First, unset current song if exists
-        Optional<Song> currentSong = songRepository.findByRoomIdAndIsCurrent(roomId, true);
-        currentSong.ifPresent(song -> {
-            song.setCurrent(false);
-            song.setQueuePosition(0); // Add to beginning of queue
-            songRepository.save(song);
-        });
+        List<Song> currentSongs = songRepository.findAllByRoomIdAndIsCurrent(roomId, true);
+
+        for (Song it : currentSongs) {
+            it.setCurrent(false);
+            it.setQueuePosition(0); // Place at start of queue
+            songRepository.save(it);
+        }
 
         // Set new current song
         Song newCurrentSong = songRepository.findById(songId)
@@ -210,6 +217,8 @@ public class RoomService {
 
         return saved;
     }
+
+
 
     @Transactional
     public void closeRoom(Long roomId, Users user) {
@@ -316,7 +325,7 @@ public class RoomService {
     }
 
     @Transactional
-    public SongEndedResponse handleSongEnded(Long roomId, Long songId) {
+    public synchronized SongEndedResponse handleSongEnded(Long roomId, Long songId) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
@@ -335,7 +344,6 @@ public class RoomService {
         endedSong.setQueuePosition(Integer.MAX_VALUE); // Place at end of queue
         voteRepository.deleteBySong(endedSong);
         songRepository.save(endedSong);
-
 
         // Find next song with highest votes
         List<Song> remainingSongs = songRepository.findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(roomId);
@@ -357,15 +365,13 @@ public class RoomService {
     }
 
     @Transactional
-    public Song playNow(Long roomId, Long songId, Users user) {
-
+    public synchronized Song playNow(Long roomId, Long songId, Users user) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
         if (!room.getCreator().getId().equals(user.getId())) {
             throw new RuntimeException("Only the room creator can play songs immediately");
         }
-
 
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
@@ -378,14 +384,14 @@ public class RoomService {
             throw new RuntimeException("Song is already playing");
         }
 
-        // Unset current song if exists and reset its votes
-        Optional<Song> currentSong = songRepository.findByRoomIdAndIsCurrent(roomId, true);
-        currentSong.ifPresent(s -> {
-            s.setCurrent(false);
-            s.setUpvotes(0);
-            voteRepository.deleteBySong(s);
-            songRepository.save(s);
-        });
+        // Find and unset ALL current songs to ensure no duplicates
+        List<Song> currentSongs = songRepository.findAllByRoomIdAndIsCurrent(roomId, true);
+        for (Song currentSong : currentSongs) {
+            currentSong.setCurrent(false);
+            currentSong.setUpvotes(0);
+            voteRepository.deleteBySong(currentSong);
+            songRepository.save(currentSong);
+        }
 
         votingService.removeVotes(songId);
 
