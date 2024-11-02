@@ -299,30 +299,15 @@ public class RoomService {
     }
 
     @Transactional
-    public boolean addActiveUser(Long roomId, String sessionId) {
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new RuntimeException("Room not found"));
-
+    public Integer addActiveUser(Long roomId, String sessionId) {
         Set<String> roomSessions = activeSessionsInRoom.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet());
         boolean wasAdded = roomSessions.add(sessionId);
-
         if (wasAdded) {
             System.out.println("Active user added to room " + roomId + ": " + sessionId);
         } else {
             System.out.println("User already active in room " + roomId + ": " + sessionId);
         }
-
-        boolean isCreator = room.getCreator().getId().equals(getUserIdFromSessionId(sessionId));
-        if (isCreator) {
-            room.setCreatorJoined(true);
-            roomRepository.save(room);
-        }
-
-        return isCreator;
-    }
-
-    private Long getUserIdFromSessionId(String sessionId) {
-        return Long.parseLong(sessionId.split("-")[0]);
+        return roomSessions.size();
     }
 
     @Transactional
@@ -472,7 +457,7 @@ public class RoomService {
     }
 
     @Transactional
-    public boolean leaveRoom(Long roomId, String sessionId, String email) {
+    public Integer leaveRoom(Long roomId, String sessionId, String email) {
         try {
             Room room = roomRepository.findById(roomId)
                     .orElseThrow(() -> new RuntimeException("Room not found"));
@@ -482,29 +467,36 @@ public class RoomService {
                 roomSessions.remove(sessionId);
             }
 
-            boolean isCreator = room.getCreator().getEmail().equals(email);
-            if(isCreator) {
+            // Check if the leaving user is the creator
+            if(room.getCreator().getEmail().equals(email)) {
                 // Reset all votes for songs in the room
                 List<Song> roomSongs = songRepository.findByRoomId(roomId);
                 for(Song song : roomSongs) {
+                    // Clear votes
                     votingService.removeVotes(song.getId());
+                    // Clear DB votes
                     voteRepository.deleteBySong(song);
+
+                    // Reset song properties
                     song.setUpvotes(0);
                     if(!song.isCurrent()) {
                         song.setQueuePosition(null);
                     }
                 }
 
+                // Save all changes
                 songRepository.saveAll(roomSongs);
 
-                room.setCreatorJoined(false);
-                roomRepository.save(room);
+                // Notify all clients
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/status", "CREATOR_LEFT");
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/songs", roomSongs);
 
                 // Clear active sessions
                 activeSessionsInRoom.remove(roomId);
+                return 0;
             }
 
-            return isCreator;
+            return roomSessions != null ? roomSessions.size() : 0;
         } catch (Exception e) {
             throw new RuntimeException("Failed to leave room: " + e.getMessage());
         }
