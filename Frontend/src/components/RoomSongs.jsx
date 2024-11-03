@@ -34,6 +34,7 @@ export default function RoomSongs() {
     const [loadingPlayNowIds, setLoadingPlayNowIds] = useState([]);
     const [loadingDeleteIds, setLoadingDeleteIds] = useState([]);
     const subscriptionsRef = useRef({});
+    const isEndingRef = useRef(false);
     const { roomName, shareableLink } = location.state || {};
 
     useEffect(() => {
