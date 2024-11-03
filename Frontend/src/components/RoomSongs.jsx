@@ -330,11 +330,10 @@ export default function RoomSongs() {
     };
 
     const onSongEnd = async () => {
-        if (currentSong) {
+        if (currentSong && !isEndingRef.current) {
             try {
-                await api.post(
-                    `/rooms/${roomId}/songs/${currentSong.id}/ended`
-                );
+                isEndingRef.current = true;  // Prevent multiple calls
+                await api.post(`/rooms/${roomId}/songs/${currentSong.id}/ended`);
             } catch (error) {
                 console.error("Error handling song end:", error);
                 toast({
@@ -342,6 +341,11 @@ export default function RoomSongs() {
                     description: "Failed to update song queue",
                     variant: "destructive",
                 });
+            } finally {
+                // Reset after a delay to prevent rapid subsequent calls
+                setTimeout(() => {
+                    isEndingRef.current = false;
+                }, 1000);
             }
         }
     };

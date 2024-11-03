@@ -336,6 +336,11 @@ public class RoomService {
             throw new RuntimeException("Song does not belong to the room");
         }
 
+        // Verify this song is actually the current song
+        if (!endedSong.isCurrent()) {
+            throw new RuntimeException("Cannot end a song that is not currently playing");
+        }
+
         votingService.removeVotes(songId);
 
         // Reset ended song
@@ -344,6 +349,15 @@ public class RoomService {
         endedSong.setQueuePosition(Integer.MAX_VALUE); // Place at end of queue
         voteRepository.deleteBySong(endedSong);
         songRepository.save(endedSong);
+
+        // Clear any other songs that might be incorrectly marked as current
+        List<Song> otherCurrentSongs = songRepository.findAllByRoomIdAndIsCurrent(roomId, true);
+        for (Song song : otherCurrentSongs) {
+            if (!song.getId().equals(songId)) {
+                song.setCurrent(false);
+                songRepository.save(song);
+            }
+        }
 
         // Find next song with highest votes
         List<Song> remainingSongs = songRepository.findByRoomIdAndIsCurrentFalseOrderByUpvotesDesc(roomId);
