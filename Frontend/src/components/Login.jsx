@@ -93,10 +93,11 @@ export default function Login() {
       }
 
       const responseData = await response.json();
-
+      
       
       login({
         user: responseData.user.username,
+        email: responseData.user.email,
         message: responseData.message,
         accessToken: responseData.tokens.accessToken,
         refreshToken: responseData.tokens.refreshToken

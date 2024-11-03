@@ -33,6 +33,7 @@ public class Room {
     @Column(unique = true)
     private String shareableLink;
 
+
     @ManyToOne
     @JoinColumn(name = "creator_id")
     private Users creator;
