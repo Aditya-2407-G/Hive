@@ -23,6 +23,7 @@ export default function SyncedPlayer({
   const playerRef = useRef(null)
   const syncIntervalRef = useRef(null)
   const lastSyncTimeRef = useRef(0)
+  const isSyncingRef = useRef(false)
 
   useEffect(() => {
     if (client && client.connected) {
@@ -32,12 +33,22 @@ export default function SyncedPlayer({
           const { currentTime, isPlaying: playState } = JSON.parse(message.body)
           if (playerRef.current && !isCreator) {
             const player = playerRef.current.internalPlayer
-            const currentPlayerTime = player.getCurrentTime()
-            if (Math.abs(currentPlayerTime - currentTime) > 1.5) {
-              player.seekTo(currentTime)
+            player.getCurrentTime().then((currentPlayerTime) => {
+              if (Math.abs(currentPlayerTime - currentTime) > 5) {
+                isSyncingRef.current = true;
+                player.seekTo(currentTime, true);
+                if (playState && player.getPlayerState() !== YouTube.PlayerState.PLAYING) {
+                  player.playVideo();
+                }
+                setTimeout(() => {
+                  isSyncingRef.current = false;
+                }, 1000);
+              }
+            })
+            if (playState !== isPlaying) {
+              setIsPlaying(playState)
+              player[playState ? 'playVideo' : 'pauseVideo']()
             }
-            player[playState ? 'playVideo' : 'pauseVideo']()
-            setIsPlaying(playState)
           }
         }
       )
@@ -47,7 +58,7 @@ export default function SyncedPlayer({
           if (playerRef.current) {
             const player = playerRef.current.internalPlayer
             player.getCurrentTime().then((currentTime) => {
-              if (currentTime - lastSyncTimeRef.current >= 60) {
+              if (currentTime - lastSyncTimeRef.current >= 10) {
                 client.publish({
                   destination: `/app/room/${roomId}/timeSync`,
                   body: JSON.stringify({
@@ -82,39 +93,53 @@ export default function SyncedPlayer({
 
   const onReady = (event) => {
     setDuration(event.target.getDuration())
+    event.target.playVideo()
   }
 
   const onStateChange = (event) => {
-    const newIsPlaying = event.data === YouTube.PlayerState.PLAYING
-    if (newIsPlaying !== isPlaying) {
-      setIsPlaying(newIsPlaying)
-      if (isCreator) {
+    if (!isSyncingRef.current) {
+      const newIsPlaying = event.data === YouTube.PlayerState.PLAYING || 
+                         event.data === YouTube.PlayerState.BUFFERING;
+      setIsPlaying(newIsPlaying);
+      if (isCreator && newIsPlaying !== isPlaying) {
         client.publish({
           destination: `/app/room/${roomId}/timeSync`,
           body: JSON.stringify({
             currentTime: event.target.getCurrentTime(),
             isPlaying: newIsPlaying,
           }),
-        })
+        });
       }
     }
 
     if (event.data === YouTube.PlayerState.ENDED) {
-      onSongEnd()
+      onSongEnd();
     }
-  }
+  };
 
   const handlePlayPause = () => {
     if (playerRef.current) {
-      const player = playerRef.current.internalPlayer
-      if (isPlaying) {
-        player.pauseVideo()
+      const player = playerRef.current.internalPlayer;
+      const newIsPlaying = !isPlaying;
+      if (newIsPlaying) {
+        player.playVideo();
       } else {
-        player.playVideo()
+        player.pauseVideo();
       }
-      setIsPlaying(!isPlaying)
+      setIsPlaying(newIsPlaying);
+      if (isCreator) {
+        player.getCurrentTime().then((currentTime) => {
+          client.publish({
+            destination: `/app/room/${roomId}/timeSync`,
+            body: JSON.stringify({
+              currentTime,
+              isPlaying: newIsPlaying,
+            }),
+          });
+        });
+      }
     }
-  }
+  };
 
   const handleVolumeChange = (newVolume) => {
     setVolume(newVolume[0])
@@ -184,7 +209,7 @@ export default function SyncedPlayer({
               height: "100%",
               width: "100%",
               playerVars: {
-                autoplay: isCreator ? 1 : 0,
+                autoplay: 1,
                 controls: 0,
               },
             }}
