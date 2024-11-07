@@ -350,10 +350,11 @@ public class RoomService {
         voteRepository.deleteBySong(endedSong);
         songRepository.save(endedSong);
 
-        // Clear any other songs that might be incorrectly marked as current
-        List<Song> otherCurrentSongs = songRepository.findAllByRoomIdAndIsCurrent(roomId, true);
-        for (Song song : otherCurrentSongs) {
-            if (!song.getId().equals(songId)) {
+        // Ensure only one song is marked as current
+        List<Song> currentSongs = songRepository.findAllByRoomIdAndIsCurrent(roomId, true);
+        if (currentSongs.size() > 1) {
+            // Multiple songs marked as current, so reset them all
+            for (Song song : currentSongs) {
                 song.setCurrent(false);
                 songRepository.save(song);
             }

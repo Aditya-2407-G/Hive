@@ -27,6 +27,25 @@ export default function SyncedPlayer({
 
   useEffect(() => {
     if (client && client.connected) {
+
+      //Subscribe for initial sync
+      
+      const initialSyncSubscription = client.subscribe(
+        `/topic/room/${roomId}/timeSync`,
+        (message) => {
+          const { currentTime, isPlaying: playState } = JSON.parse(message.body)
+          if (playerRef.current && !isCreator) {
+            const player = playerRef.current.internalPlayer
+            player.seekTo(currentTime, true)
+            if (playState && player.getPlayerState() !== YouTube.PlayerState.PLAYING) {
+              player.playVideo()
+            }
+          }
+        }
+      )
+
+
+
       const syncSubscription = client.subscribe(
         `/topic/room/${roomId}/timeSync`,
         (message) => {
@@ -58,7 +77,7 @@ export default function SyncedPlayer({
           if (playerRef.current) {
             const player = playerRef.current.internalPlayer
             player.getCurrentTime().then((currentTime) => {
-              if (currentTime - lastSyncTimeRef.current >= 10) {
+              if (currentTime - lastSyncTimeRef.current >= 5) {
                 client.publish({
                   destination: `/app/room/${roomId}/timeSync`,
                   body: JSON.stringify({
@@ -77,9 +96,9 @@ export default function SyncedPlayer({
         if (syncIntervalRef.current) {
           clearInterval(syncIntervalRef.current)
         }
-        if (syncSubscription) {
           syncSubscription.unsubscribe()
-        }
+          initialSyncSubscription.unsubscribe()
+        
       }
     }
   }, [client, roomId, isCreator, isPlaying])
