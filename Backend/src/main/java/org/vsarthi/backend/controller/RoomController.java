@@ -1,4 +1,4 @@
-package org.vsarthi.backend.contoller;
+package org.vsarthi.backend.controller;
 
 import java.util.List;
 

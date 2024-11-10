@@ -4,6 +4,7 @@ import SockJS from "sockjs-client";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader, Share2, Music, Users } from "lucide-react"
 import { useApi } from "@/hooks/api";
 import { useAuth } from "@/context/AuthProvider";
@@ -12,6 +13,7 @@ import SyncedPlayer from "./SyncedPlayer";
 import AddSongForm from "./AddSongForm";
 import SongQueue from "./SongQueue";
 import RoomHeader from "./RoomHeader";
+import PlaylistTab from "./Playlist/PlaylistTab";
 
 export default function RoomSongs() {
     const { roomId } = useParams();
@@ -30,12 +32,28 @@ export default function RoomSongs() {
     const [activeUsers, setActiveUsers] = useState(0);
     const [youtubeLink, setYoutubeLink] = useState("");
     const [isAddingSong, setIsAddingSong] = useState(false);
-    const [loadingVoteIds, setLoadingVoteIds] = useState([]);
-    const [loadingPlayNowIds, setLoadingPlayNowIds] = useState([]);
-    const [loadingDeleteIds, setLoadingDeleteIds] = useState([]);
+    const [loadingIds, setLoadingIds] = useState({
+        vote: [],
+        playNow: [],
+        delete: []
+    });
     const subscriptionsRef = useRef({});
     const isEndingRef = useRef(false);
     const { roomName, shareableLink } = location.state || {};
+
+    const addLoadingId = (type, id) => {
+        setLoadingIds(prev => ({
+            ...prev,
+            [type]: [...prev[type], id]
+        }));
+    };
+
+    const removeLoadingId = (type, id) => {
+        setLoadingIds(prev => ({
+            ...prev,
+            [type]: prev[type].filter(loadingId => loadingId !== id)
+        }));
+    };
 
     useEffect(() => {
         fetchRoomData();
@@ -237,14 +255,12 @@ export default function RoomSongs() {
     const handleVoteUpdate = (update) => {
         const updatedSongs = update.updatedSongs;
         updateSongsList(updatedSongs);
-        setLoadingVoteIds((prev) =>
-            prev.filter((id) => !updatedSongs.some((song) => song.id === id))
-        );
+        addLoadingId("vote", update.songId);
     };
 
     const handleVote = async (songId) => {
         try {
-            setLoadingVoteIds((prev) => [...prev, songId]);
+            addLoadingId("vote", songId);
             const response = await api.post(`/rooms/songs/${songId}/vote`);
             const updatedSong = response.data;
             setSongs((prevSongs) =>
@@ -267,7 +283,27 @@ export default function RoomSongs() {
                 variant: "destructive",
             });
         } finally {
-            setLoadingVoteIds((prev) => prev.filter((id) => id !== songId));
+            removeLoadingId("vote", songId);
+        }
+    };
+
+    const handleAddToQueue = async (song) => {
+        try {
+            await api.post(`/rooms/${roomId}/songs`, { youtubeLink: song.youtubeLink });
+            toast({
+                title: "Success",
+                description: "Song added to queue successfully!",
+            });
+            // Update the local state instead of fetching all data again
+            setSongs(prevSongs => [...prevSongs, song]);
+            setQueuedSongs(prevQueued => [...prevQueued, song]);
+        } catch (error) {
+            console.error("Error adding song to queue:", error);
+            toast({
+                title: "Error",
+                description: error.response?.data.error || "Failed to add song to queue",
+                variant: "destructive",
+            });
         }
     };
 
@@ -294,7 +330,7 @@ export default function RoomSongs() {
 
     const handlePlayNow = async (songId) => {
         try {
-            setLoadingPlayNowIds((prev) => [...prev, songId]);
+            addLoadingId("playNow", songId);
             await api.post(`/rooms/${roomId}/songs/${songId}/play-now`);
         } catch (error) {
             console.error("Error playing song now:", error);
@@ -305,13 +341,13 @@ export default function RoomSongs() {
                 variant: "destructive",
             });
         } finally {
-            setLoadingPlayNowIds((prev) => prev.filter((id) => id !== songId));
+            removeLoadingId("playNow", songId);
         }
     };
 
     const handleSongDelete = async (songId) => {
         try {
-            setLoadingDeleteIds((prev) => [...prev, songId]);
+            addLoadingId("delete", songId);
             await api.delete(`/rooms/${roomId}/songs/${songId}/remove`);
             toast({
                 title: "Success",
@@ -326,7 +362,7 @@ export default function RoomSongs() {
                 variant: "destructive",
             });
         } finally {
-            setLoadingDeleteIds((prev) => prev.filter((id) => id !== songId));
+            removeLoadingId("delete", songId);
         }
     };
 
@@ -475,78 +511,69 @@ export default function RoomSongs() {
 
     return (
         <div className="min-h-screen bg-gradient-to-r from-slate-900 to-slate-800 text-slate-100 p-4">
-          <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
-            <RoomHeader
-              roomName={roomName}
-              roomId={roomId}
-              activeUsers={activeUsers}
-              isCreator={isCreator}
-              onLeaveRoom={handleLeaveRoom}
-              onDeleteRoom={handleDeleteRoom}
-            />
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col lg:flex-row gap-6">
-                <div className="w-full lg:w-3/5 order-2 lg:order-1">
-                  <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
-                    <h3 className="text-2xl font-semibold text-amber-400 mb-2 sm:mb-0">
-                      Up Next
-                    </h3>
-                    <Button
-                      onClick={generateShareableLink}
-                      className="w-full sm:w-auto bg-amber-400 hover:bg-amber-500 text-slate-900 font-semibold transition-colors duration-200"
-                    >
-                      <Share2 className="mr-2 h-4 w-4" /> Share Room
-                    </Button>
-                  </div>
-                  <SongQueue
-                    queuedSongs={queuedSongs}
+            <Card className="bg-slate-800/50 border-slate-700 shadow-xl backdrop-blur-sm max-w-6xl mx-auto">
+                <RoomHeader
+                    roomName={roomName}
+                    roomId={roomId}
+                    activeUsers={activeUsers}
                     isCreator={isCreator}
-                    handleVote={handleVote}
-                    handlePlayNow={handlePlayNow}
-                    handleSongDelete={handleSongDelete}
-                    loadingVoteIds={loadingVoteIds}
-                    loadingPlayNowIds={loadingPlayNowIds}
-                    loadingDeleteIds={loadingDeleteIds}
-                  />
-                </div>
-                <div className="w-full lg:w-2/5 order-1 lg:order-2">
-                  <AddSongForm
-                    youtubeLink={youtubeLink}
-                    setYoutubeLink={setYoutubeLink}
-                    addSong={addSong}
-                    isAddingSong={isAddingSong}
-                  />
-                  {currentSong ? (
-                    <div className="bg-slate-700 rounded-lg p-4 shadow-lg mt-4">
-                      <h3 className="text-xl font-semibold text-amber-400 mb-2">
-                        Now Playing
-                      </h3>
-                      <p className="text-slate-300 mb-4 line-clamp-2">
-                        {currentSong.title}
-                      </p>
-                      <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
-                        <SyncedPlayer
-                          currentSong={currentSong}
-                          isCreator={isCreator}
-                          client={client}
-                          roomId={roomId}
-                          onSongEnd={onSongEnd}
-                        />
-                      </div>
-  
+                    onLeaveRoom={handleLeaveRoom}
+                    onDeleteRoom={handleDeleteRoom}
+                />
+                <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        {/* Left side: Tabs with Queue and Playlist */}
+                        <div className="w-full lg:w-3/5 order-2 lg:order-1">
+                            <Tabs defaultValue="queue" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2 mb-4">
+                                    <TabsTrigger value="queue">Queue</TabsTrigger>
+                                    <TabsTrigger value="playlists">Playlists</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="queue">
+                                    <SongQueue
+                                        queuedSongs={queuedSongs}
+                                        isCreator={isCreator}
+                                        handleVote={handleVote}
+                                        handlePlayNow={handlePlayNow}
+                                        handleSongDelete={handleSongDelete}
+                                        loadingVoteIds={loadingIds.vote}
+                                        loadingPlayNowIds={loadingIds.playNow}
+                                        loadingDeleteIds={loadingIds.delete}
+                                    />
+                                </TabsContent>
+                                <TabsContent value="playlists">
+                                    <PlaylistTab roomId={roomId} onAddToQueue={handleAddToQueue} />
+                                </TabsContent>
+                            </Tabs>
+                        </div>
+
+                        {/* Right side: Add Song Form and Player */}
+                        <div className="w-full lg:w-2/5 order-1 lg:order-2">
+                            <AddSongForm
+                                youtubeLink={youtubeLink}
+                                setYoutubeLink={setYoutubeLink}
+                                addSong={addSong}
+                                isAddingSong={isAddingSong}
+                            />
+                            {currentSong && (
+                                <div className="bg-slate-700 rounded-lg p-4 shadow-lg mt-4">
+                                    <h3 className="text-xl font-semibold text-amber-400 mb-2">Now Playing</h3>
+                                    <p className="text-slate-300 mb-4 line-clamp-2">{currentSong.title}</p>
+                                    <div className="aspect-w-16 aspect-h-9 mb-4 rounded-md overflow-hidden">
+                                        <SyncedPlayer
+                                            currentSong={currentSong}
+                                            isCreator={isCreator}
+                                            client={client}
+                                            roomId={roomId}
+                                            onSongEnd={onSongEnd}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                  ) : (
-                    <div className="bg-slate-700 rounded-lg p-4 shadow-lg mt-4 text-center">
-                      <Music className="w-12 h-12 text-amber-400 mx-auto mb-2" />
-                      <p className="text-slate-400 italic">
-                        No songs in the queue. Add a song to get started!
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+            </Card>
         </div>
-      )
+    );
 }

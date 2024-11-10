@@ -51,7 +51,7 @@ const SongQueue = ({
   }, [stompClient, roomId, queuedSongs]);
 
   return (
-    <ScrollArea className="h-[500px] rounded-md border border-slate-600 p-4 bg-slate-800/30 backdrop-blur-sm">
+    <ScrollArea className="h-[600px] rounded-md border border-slate-600 p-4 bg-slate-800/30 backdrop-blur-sm">
       <AnimatePresence>
         {queuedSongs.map((song, index) => (
           <motion.div
