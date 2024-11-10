@@ -1,4 +1,4 @@
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Trash, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
 import AddSongForm from "../AddSongForm";
@@ -48,7 +48,7 @@ export default function PlaylistDetails({ playlist, loading, onAddToQueue, onDel
                     {loading.deletePlaylist ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Trash2 className="h-4 w-4 mr-2" />
                     )}
                     Delete Playlist
                 </Button>
