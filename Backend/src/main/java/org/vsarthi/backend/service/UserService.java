@@ -1,10 +1,6 @@
 package org.vsarthi.backend.service;
 
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletResponse;
-import org.antlr.v4.runtime.Token;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -13,6 +9,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.vsarthi.backend.model.Users;
 import org.vsarthi.backend.repository.UserRepository;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Service
 
@@ -124,6 +123,18 @@ public class UserService {
         }
 
         return generateTokens(user);
+    }
+
+    public Users findOrCreateUser(String googleId, String email, String name) {
+        Users user = userRepository.findByOauth2Id(googleId);
+        if (user == null) {
+            user = new Users();
+            user.setOauth2Id(googleId);
+            user.setEmail(email);
+            user.setUsername(name);
+            userRepository.save(user);
+        }
+        return user;
     }
 
     // Inner class to represent a pair of tokens
