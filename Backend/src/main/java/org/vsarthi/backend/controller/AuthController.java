@@ -1,11 +1,21 @@
 package org.vsarthi.backend.controller;
 
+import java.util.Collections;
 import java.util.Map;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import java.security.GeneralSecurityException;
+import java.io.IOException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +34,10 @@ import jakarta.servlet.http.HttpServletResponse;
 public class AuthController {
 
     private final UserService userService;
+
+    @Value("${spring.security.oauth2.client.registration.google.client-id}")
+    private String googleClientId;
+
 
     @Autowired
     public AuthController(UserService userService) {
@@ -137,4 +151,62 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Invalid refresh token");
         }
     }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> googleLogin(@RequestBody Map<String, String> body,
+                                         HttpServletResponse response) {
+        try {
+            String idToken = body.get("idToken");
+
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+                    .setAudience(Collections.singletonList(googleClientId))
+                    .build();
+
+            GoogleIdToken googleIdToken = verifier.verify(idToken);
+            if (googleIdToken == null) {
+                return ResponseEntity.badRequest().body("Invalid ID token");
+            }
+
+            GoogleIdToken.Payload payload = googleIdToken.getPayload();
+            String email = payload.getEmail();
+            String name = (String) payload.get("name");
+            String pictureUrl = (String) payload.get("picture");
+
+            // Get or create user
+            Users user = userService.findOrCreateUser(payload.getSubject(), email, name);
+
+            // Generate tokens
+            UserService.TokenPair tokens = userService.generateTokens(user);
+
+            // Set cookies
+            ResponseCookie jwtCookie = ResponseCookie.from("accessToken", tokens.accessToken)
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .maxAge(3600)
+                    .build();
+
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken)
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .maxAge(604800)
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                    .body(Map.of(
+                            "message", "Google login successful",
+                            "user", user,
+                            "tokens", tokens
+                    ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body("Google authentication failed: " + e.getMessage());
+        }
+    }
+
+
 }
