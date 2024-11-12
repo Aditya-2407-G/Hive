@@ -41,30 +41,41 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
         UserService.TokenPair tokens = userService.generateTokens(user);
 
-        // Create a cookie with the access token
+        // Set tokens in cookies (optional)
         ResponseCookie jwtCookie = ResponseCookie.from("accessToken", tokens.accessToken)
                 .httpOnly(true)
-                .secure(true) // Set to true if using HTTPS
+                .secure(true)
                 .path("/")
-                .maxAge(3600) // 1 hour
+                .maxAge(3600)
                 .build();
-
-        // Create a cookie with the refresh token
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken)
                 .httpOnly(true)
-                .secure(true) // Set to true if using HTTPS
-                .path("/") // not the best practice, but for simplicity
-                .maxAge(604800) // 1 week
+                .secure(true)
+                .path("/")
+                .maxAge(604800)
                 .build();
-
         response.addHeader("Set-Cookie", jwtCookie.toString());
         response.addHeader("Set-Cookie", refreshCookie.toString());
 
-        // Create the redirect URL with the auth data
-        String redirectUrl = buildRedirectUrl(user, tokens);
+        // Check the platform query parameter
+        String platform = request.getParameter("platform");
 
-        // Perform the redirect
-        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
+        if ("mobile".equalsIgnoreCase(platform)) {
+            // Send JSON response for mobile
+            Map<String, Object> authData = Map.of(
+                    "message", "Authentication successful",
+                    "user", user,
+                    "tokens", tokens
+            );
+
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write(objectMapper.writeValueAsString(authData));
+        } else {
+            // Redirect for web
+            String redirectUrl = buildRedirectUrl(user, tokens);
+            getRedirectStrategy().sendRedirect(request, response, redirectUrl);
+        }
     }
 
     private String buildRedirectUrl(Users user, UserService.TokenPair tokens) throws IOException {

@@ -123,7 +123,7 @@ export default function Login() {
 
   const handleGoogleLogin = () => {
     setIsGoogleLoggingIn(true);
-    window.location.href = `${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google`;
+    window.location.href = `${import.meta.env.VITE_BASE_URL}/oauth2/authorization/google?platform=web`;
   };
 
     return (
